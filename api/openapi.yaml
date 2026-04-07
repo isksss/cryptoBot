@@ -9,6 +9,7 @@ servers:
   - url: http://localhost:8080
 tags:
   - name: system
+  - name: balances
   - name: prices
   - name: orders
   - name: executions
@@ -52,6 +53,20 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/LatestPricesResponse"
+  /api/v1/balances/latest:
+    get:
+      operationId: getLatestBalances
+      tags: [balances]
+      summary: 最新残高を取得
+      parameters:
+        - $ref: "#/components/parameters/BalanceAssetCodeOptional"
+      responses:
+        "200":
+          description: 最新残高一覧
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LatestBalancesResponse"
   /api/v1/prices/history:
     get:
       operationId: listPriceHistory
@@ -202,6 +217,12 @@ components:
       required: true
       schema:
         $ref: "#/components/schemas/AssetCode"
+    BalanceAssetCodeOptional:
+      name: assetCode
+      in: query
+      required: false
+      schema:
+        $ref: "#/components/schemas/BalanceAssetCode"
     FromAt:
       name: from
       in: query
@@ -326,6 +347,14 @@ components:
         lockedAmount:
           type: string
           description: decimal string
+    LatestBalancesResponse:
+      type: object
+      required: [balances]
+      properties:
+        balances:
+          type: array
+          items:
+            $ref: "#/components/schemas/SummaryAsset"
           example: "0.01000000"
     SummaryOrderStats:
       type: object

@@ -30,9 +30,10 @@ func (s *Service) Run(ctx context.Context) error {
 	if s.priceSyncer != nil {
 		jobRunID, err := s.priceSyncer.SyncPriceAndBalances(ctx, "startup", "initial snapshot on process start")
 		if err != nil {
-			return err
+			s.logger.Error("initial snapshot failed", slog.Any("error", err))
+		} else {
+			s.logger.Info("initial snapshot completed", slog.Int64("jobRunId", jobRunID))
 		}
-		s.logger.Info("initial snapshot completed", slog.Int64("jobRunId", jobRunID))
 	}
 
 	<-ctx.Done()

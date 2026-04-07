@@ -57,6 +57,36 @@ func (h *Server) GetHealth(ctx context.Context, _ GetHealthRequestObject) (GetHe
 	}, nil
 }
 
+func (h *Server) GetLatestBalances(ctx context.Context, request GetLatestBalancesRequestObject) (GetLatestBalancesResponseObject, error) {
+	rows, err := h.queries.ListLatestBalances(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	var filter *BalanceAssetCode
+	if request.Params.AssetCode != nil {
+		value := BalanceAssetCode(*request.Params.AssetCode)
+		filter = &value
+	}
+
+	balances := make([]SummaryAsset, 0, len(rows))
+	for _, row := range rows {
+		assetCode := BalanceAssetCode(row.AssetCode)
+		if filter != nil && assetCode != *filter {
+			continue
+		}
+		balances = append(balances, SummaryAsset{
+			AssetCode:       assetCode,
+			AvailableAmount: row.AvailableAmount,
+			LockedAmount:    row.LockedAmount,
+		})
+	}
+
+	return GetLatestBalances200JSONResponse{
+		Balances: balances,
+	}, nil
+}
+
 func (h *Server) GetLatestPrices(ctx context.Context, request GetLatestPricesRequestObject) (GetLatestPricesResponseObject, error) {
 	rows, err := h.queries.ListLatestPrices(ctx, optionalAssetCode(request.Params.AssetCode))
 	if err != nil {

@@ -123,6 +123,11 @@ type JobRunSummary struct {
 // JobType defines model for JobType.
 type JobType string
 
+// LatestBalancesResponse defines model for LatestBalancesResponse.
+type LatestBalancesResponse struct {
+	Balances []SummaryAsset `json:"balances"`
+}
+
 // LatestPricesResponse defines model for LatestPricesResponse.
 type LatestPricesResponse struct {
 	Prices []PriceSnapshot `json:"prices"`
@@ -282,6 +287,9 @@ type TriggerJobResponse struct {
 // AssetCodeRequired defines model for AssetCodeRequired.
 type AssetCodeRequired = AssetCode
 
+// BalanceAssetCodeOptional defines model for BalanceAssetCodeOptional.
+type BalanceAssetCodeOptional = BalanceAssetCode
+
 // FromAt defines model for FromAt.
 type FromAt = time.Time
 
@@ -302,6 +310,11 @@ type ToAt = time.Time
 
 // NotFound defines model for NotFound.
 type NotFound = ErrorResponse
+
+// GetLatestBalancesParams defines parameters for GetLatestBalances.
+type GetLatestBalancesParams struct {
+	AssetCode *BalanceAssetCodeOptional `form:"assetCode,omitempty" json:"assetCode,omitempty"`
+}
 
 // ListExecutionsParams defines parameters for ListExecutions.
 type ListExecutionsParams struct {
@@ -349,6 +362,9 @@ type TriggerPriceFetchJobJSONRequestBody = TriggerJobRequest
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// 最新残高を取得
+	// (GET /api/v1/balances/latest)
+	GetLatestBalances(w http.ResponseWriter, r *http.Request, params GetLatestBalancesParams)
 	// 約定履歴を取得
 	// (GET /api/v1/executions)
 	ListExecutions(w http.ResponseWriter, r *http.Request, params ListExecutionsParams)
@@ -392,6 +408,33 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
+
+// GetLatestBalances operation middleware
+func (siw *ServerInterfaceWrapper) GetLatestBalances(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetLatestBalancesParams
+
+	// ------------- Optional query parameter "assetCode" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "assetCode", r.URL.Query(), &params.AssetCode)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "assetCode", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetLatestBalances(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
 
 // ListExecutions operation middleware
 func (siw *ServerInterfaceWrapper) ListExecutions(w http.ResponseWriter, r *http.Request) {
@@ -830,6 +873,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 		ErrorHandlerFunc:   options.ErrorHandlerFunc,
 	}
 
+	m.HandleFunc("GET "+options.BaseURL+"/api/v1/balances/latest", wrapper.GetLatestBalances)
 	m.HandleFunc("GET "+options.BaseURL+"/api/v1/executions", wrapper.ListExecutions)
 	m.HandleFunc("GET "+options.BaseURL+"/api/v1/job-runs", wrapper.ListJobRuns)
 	m.HandleFunc("POST "+options.BaseURL+"/api/v1/job-runs/daily-trade", wrapper.TriggerDailyTradeJob)
@@ -846,6 +890,23 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 }
 
 type NotFoundJSONResponse ErrorResponse
+
+type GetLatestBalancesRequestObject struct {
+	Params GetLatestBalancesParams
+}
+
+type GetLatestBalancesResponseObject interface {
+	VisitGetLatestBalancesResponse(w http.ResponseWriter) error
+}
+
+type GetLatestBalances200JSONResponse LatestBalancesResponse
+
+func (response GetLatestBalances200JSONResponse) VisitGetLatestBalancesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
 
 type ListExecutionsRequestObject struct {
 	Params ListExecutionsParams
@@ -1043,6 +1104,9 @@ func (response GetHealth200JSONResponse) VisitGetHealthResponse(w http.ResponseW
 
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
+	// 最新残高を取得
+	// (GET /api/v1/balances/latest)
+	GetLatestBalances(ctx context.Context, request GetLatestBalancesRequestObject) (GetLatestBalancesResponseObject, error)
 	// 約定履歴を取得
 	// (GET /api/v1/executions)
 	ListExecutions(ctx context.Context, request ListExecutionsRequestObject) (ListExecutionsResponseObject, error)
@@ -1105,6 +1169,32 @@ type strictHandler struct {
 	ssi         StrictServerInterface
 	middlewares []StrictMiddlewareFunc
 	options     StrictHTTPServerOptions
+}
+
+// GetLatestBalances operation middleware
+func (sh *strictHandler) GetLatestBalances(w http.ResponseWriter, r *http.Request, params GetLatestBalancesParams) {
+	var request GetLatestBalancesRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetLatestBalances(ctx, request.(GetLatestBalancesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetLatestBalances")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetLatestBalancesResponseObject); ok {
+		if err := validResponse.VisitGetLatestBalancesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
 }
 
 // ListExecutions operation middleware
@@ -1407,47 +1497,49 @@ func (sh *strictHandler) GetHealth(w http.ResponseWriter, r *http.Request) {
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
+	"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",
+	"4bN2ae2XAAAA///qjGJdVzMAAA==",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file
