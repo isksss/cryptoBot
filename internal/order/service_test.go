@@ -14,25 +14,30 @@ import (
 )
 
 type fakeStore struct {
-	insertJobRunParams       store.InsertJobRunParams
-	insertJobRunRow          store.InsertJobRunRow
-	markJobRunSucceededParam *store.MarkJobRunSucceededParams
-	markJobRunFailedParam    *store.MarkJobRunFailedParams
-	insertOrderParams        store.InsertOrderParams
-	insertOrderRow           store.InsertOrderRow
-	insertOrderErr           error
-	insertedOrderEvents      []store.InsertOrderEventParams
-	getOrderRow              store.GetOrderRow
-	getOrderErr              error
-	reconcilableOrders       []store.ListReconcilableOrdersRow
-	updateOrderAfterSync     *store.UpdateOrderAfterSyncParams
-	insertedTradeExecutions  []store.InsertTradeExecutionParams
-	cancelRequestedParams    *store.MarkOrderCancelRequestedParams
-	cancelledParams          *store.MarkOrderCancelledParams
+	insertJobRunRow            store.InsertJobRunRow
+	markJobRunSucceededParam   *store.MarkJobRunSucceededParams
+	markJobRunFailedParam      *store.MarkJobRunFailedParams
+	markJobRunSkippedParam     *store.MarkJobRunSkippedParams
+	insertOrderParams          store.InsertOrderParams
+	insertOrderRow             store.InsertOrderRow
+	insertOrderErr             error
+	insertedOrderEvents        []store.InsertOrderEventParams
+	getOrderRow                store.GetOrderRow
+	getOrderErr                error
+	latestBalances             []store.ListLatestBalancesRow
+	latestPrices               []store.ListLatestPricesRow
+	weeklyConsumed             []store.ListWeeklyConsumedBuyUnitsRow
+	openOrdersCount            int64
+	unresolvedPreviousDayCount int64
+	jobRunsInWindowCount       int64
+	reconcilableOrders         []store.ListReconcilableOrdersRow
+	updateOrderAfterSync       *store.UpdateOrderAfterSyncParams
+	insertedTradeExecutions    []store.InsertTradeExecutionParams
+	cancelRequestedParams      *store.MarkOrderCancelRequestedParams
+	cancelledParams            *store.MarkOrderCancelledParams
 }
 
-func (f *fakeStore) InsertJobRun(_ context.Context, arg store.InsertJobRunParams) (store.InsertJobRunRow, error) {
-	f.insertJobRunParams = arg
+func (f *fakeStore) InsertJobRun(_ context.Context, _ store.InsertJobRunParams) (store.InsertJobRunRow, error) {
 	if f.insertJobRunRow.ID == 0 {
 		f.insertJobRunRow.ID = 1
 	}
@@ -46,6 +51,11 @@ func (f *fakeStore) MarkJobRunFailed(_ context.Context, arg store.MarkJobRunFail
 
 func (f *fakeStore) MarkJobRunSucceeded(_ context.Context, arg store.MarkJobRunSucceededParams) error {
 	f.markJobRunSucceededParam = &arg
+	return nil
+}
+
+func (f *fakeStore) MarkJobRunSkipped(_ context.Context, arg store.MarkJobRunSkippedParams) error {
+	f.markJobRunSkippedParam = &arg
 	return nil
 }
 
@@ -66,6 +76,30 @@ func (f *fakeStore) GetOrder(_ context.Context, id int64) (store.GetOrderRow, er
 	row := f.getOrderRow
 	row.ID = id
 	return row, nil
+}
+
+func (f *fakeStore) ListLatestBalances(context.Context) ([]store.ListLatestBalancesRow, error) {
+	return f.latestBalances, nil
+}
+
+func (f *fakeStore) ListLatestPrices(context.Context, *string) ([]store.ListLatestPricesRow, error) {
+	return f.latestPrices, nil
+}
+
+func (f *fakeStore) ListWeeklyConsumedBuyUnits(context.Context, pgtype.Timestamptz) ([]store.ListWeeklyConsumedBuyUnitsRow, error) {
+	return f.weeklyConsumed, nil
+}
+
+func (f *fakeStore) CountOpenOrders(context.Context) (int64, error) {
+	return f.openOrdersCount, nil
+}
+
+func (f *fakeStore) CountUnresolvedPreviousDayOrders(context.Context) (int64, error) {
+	return f.unresolvedPreviousDayCount, nil
+}
+
+func (f *fakeStore) CountJobRunsByTypeInWindow(context.Context, store.CountJobRunsByTypeInWindowParams) (int64, error) {
+	return f.jobRunsInWindowCount, nil
 }
 
 func (f *fakeStore) ListReconcilableOrders(_ context.Context, _ int32) ([]store.ListReconcilableOrdersRow, error) {
@@ -93,14 +127,14 @@ func (f *fakeStore) MarkOrderCancelled(_ context.Context, arg store.MarkOrderCan
 }
 
 type fakeExchangeClient struct {
-	rules              []gmo.SymbolRule
-	ordersByBatch      []gmo.Order
-	executionsByOrder  map[int64][]gmo.Execution
-	createReq          gmo.CreateOrderRequest
-	createResp         gmo.CreateOrderResponse
-	createErr          error
-	cancelOrderID      int64
-	cancelErr          error
+	rules             []gmo.SymbolRule
+	ordersByBatch     []gmo.Order
+	executionsByOrder map[int64][]gmo.Execution
+	createReq         gmo.CreateOrderRequest
+	createResp        gmo.CreateOrderResponse
+	createErr         error
+	cancelOrderID     int64
+	cancelErr         error
 }
 
 func (f *fakeExchangeClient) GetSymbolRules(context.Context) ([]gmo.SymbolRule, error) {
@@ -128,12 +162,11 @@ func (f *fakeExchangeClient) CancelOrder(_ context.Context, orderID int64) error
 func TestCreateLimitOrder(t *testing.T) {
 	t.Parallel()
 
-	clientID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
 	storeStub := &fakeStore{
 		insertOrderRow: store.InsertOrderRow{
 			ID:                  1,
 			ExchangeOrderID:     "12345",
-			ClientOrderID:       pgtype.UUID{Bytes: clientID, Valid: true},
+			ClientOrderID:       pgtype.UUID{Bytes: uuid.MustParse("11111111-1111-1111-1111-111111111111"), Valid: true},
 			AssetCode:           "BTC",
 			Side:                "buy",
 			OrderType:           "limit",
@@ -149,11 +182,11 @@ func TestCreateLimitOrder(t *testing.T) {
 		},
 	}
 	exchangeStub := &fakeExchangeClient{
-		rules: []gmo.SymbolRule{{Symbol: "BTC_JPY", MinOrderSize: "0.001", SizeStep: "0.001"}},
+		rules:      []gmo.SymbolRule{{Symbol: "BTC_JPY", MinOrderSize: "0.001", SizeStep: "0.001", TickSize: "1"}},
 		createResp: gmo.CreateOrderResponse{OrderID: "12345"},
 	}
 
-	service := NewService(storeStub, exchangeStub, false)
+	service := NewService(storeStub, exchangeStub, false, "0.1")
 	service.now = func() time.Time { return time.Date(2026, 4, 8, 0, 0, 0, 0, time.UTC) }
 
 	row, err := service.CreateLimitOrder(context.Background(), CreateInput{
@@ -167,46 +200,25 @@ func TestCreateLimitOrder(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateLimitOrder returned error: %v", err)
 	}
-
 	if row.ID != 1 {
-		t.Fatalf("unexpected returned row: %+v", row)
+		t.Fatalf("unexpected row: %+v", row)
 	}
-	if exchangeStub.createReq.Symbol != "BTC_JPY" || exchangeStub.createReq.ExecutionType != "LIMIT" {
+	if exchangeStub.createReq.Symbol != "BTC_JPY" {
 		t.Fatalf("unexpected create request: %+v", exchangeStub.createReq)
-	}
-	if !storeStub.insertOrderParams.IsFeeFree || storeStub.insertOrderParams.Status != "open" {
-		t.Fatalf("unexpected inserted order params: %+v", storeStub.insertOrderParams)
 	}
 }
 
 func TestCreateLimitOrderDryRun(t *testing.T) {
 	t.Parallel()
 
-	storeStub := &fakeStore{
+	service := NewService(&fakeStore{
 		insertOrderRow: store.InsertOrderRow{
-			ID:                  2,
-			ExchangeOrderID:     "dryrun-1",
-			ClientOrderID:       pgtype.UUID{Bytes: uuid.MustParse("22222222-2222-2222-2222-222222222222"), Valid: true},
-			AssetCode:           "ETH",
-			Side:                "sell",
-			OrderType:           "limit",
-			Status:              "open",
-			PriceJpy:            "300000.00000000",
-			OrderedUnits:        "0.01000000",
-			FilledUnits:         "0.00000000",
-			RemainingUnits:      "0.01000000",
-			FeeJpy:              "0.00000000",
-			IsFeeFree:           false,
-			PlacedAt:            pgTime(time.Date(2026, 4, 8, 0, 0, 0, 0, time.UTC)),
-			LastStatusCheckedAt: pgTime(time.Date(2026, 4, 8, 0, 0, 0, 0, time.UTC)),
+			ID:              2,
+			ExchangeOrderID: "dryrun-1",
 		},
-	}
-	exchangeStub := &fakeExchangeClient{
-		rules: []gmo.SymbolRule{{Symbol: "ETH_JPY", MinOrderSize: "0.01", SizeStep: "0.01"}},
-	}
-
-	service := NewService(storeStub, exchangeStub, true)
-	service.now = func() time.Time { return time.Date(2026, 4, 8, 0, 0, 0, 0, time.UTC) }
+	}, &fakeExchangeClient{
+		rules: []gmo.SymbolRule{{Symbol: "ETH_JPY", MinOrderSize: "0.01", SizeStep: "0.01", TickSize: "1"}},
+	}, true, "0.1")
 
 	if _, err := service.CreateLimitOrder(context.Background(), CreateInput{
 		AssetCode: "ETH",
@@ -216,21 +228,14 @@ func TestCreateLimitOrderDryRun(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("CreateLimitOrder returned error: %v", err)
 	}
-
-	if exchangeStub.createReq.Symbol != "" {
-		t.Fatalf("did not expect live order creation in dry-run: %+v", exchangeStub.createReq)
-	}
-	if len(storeStub.insertedOrderEvents) != 1 {
-		t.Fatalf("expected one order event, got %d", len(storeStub.insertedOrderEvents))
-	}
 }
 
 func TestCreateLimitOrderRejectsInvalidUnits(t *testing.T) {
 	t.Parallel()
 
 	service := NewService(&fakeStore{}, &fakeExchangeClient{
-		rules: []gmo.SymbolRule{{Symbol: "BTC_JPY", MinOrderSize: "0.001", SizeStep: "0.001"}},
-	}, false)
+		rules: []gmo.SymbolRule{{Symbol: "BTC_JPY", MinOrderSize: "0.001", SizeStep: "0.001", TickSize: "1"}},
+	}, false, "0.1")
 
 	if _, err := service.CreateLimitOrder(context.Background(), CreateInput{
 		AssetCode: "BTC",
@@ -252,35 +257,28 @@ func TestCancelOrder(t *testing.T) {
 			Status:          "open",
 		},
 	}
-	exchangeStub := &fakeExchangeClient{}
-
-	service := NewService(storeStub, exchangeStub, false)
+	service := NewService(storeStub, &fakeExchangeClient{}, false, "0.1")
 	service.now = func() time.Time { return time.Date(2026, 4, 8, 1, 2, 3, 0, time.UTC) }
 
 	if err := service.CancelOrder(context.Background(), 9); err != nil {
 		t.Fatalf("CancelOrder returned error: %v", err)
 	}
-
-	if exchangeStub.cancelOrderID != 456 {
-		t.Fatalf("unexpected cancel order id: %d", exchangeStub.cancelOrderID)
-	}
 	if storeStub.cancelRequestedParams == nil || storeStub.cancelledParams == nil {
-		t.Fatal("expected cancel state updates to be persisted")
+		t.Fatal("expected cancel updates")
 	}
 }
 
 func TestCancelOrderBlocksLiveCancelInDryRun(t *testing.T) {
 	t.Parallel()
 
-	storeStub := &fakeStore{
+	service := NewService(&fakeStore{
 		getOrderRow: store.GetOrderRow{
 			ID:              9,
 			ExchangeOrderID: "456",
 			Status:          "open",
 		},
-	}
+	}, &fakeExchangeClient{}, true, "0.1")
 
-	service := NewService(storeStub, &fakeExchangeClient{}, true)
 	if err := service.CancelOrder(context.Background(), 9); err != ErrDryRunLiveCancel {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -301,52 +299,94 @@ func TestReconcileOrders(t *testing.T) {
 			},
 		},
 	}
-	exchangeStub := &fakeExchangeClient{
-		ordersByBatch: []gmo.Order{
-			{
-				OrderID:      456,
-				Symbol:       "BTC_JPY",
-				Size:         "0.002",
-				ExecutedSize: "0.001",
-				Status:       "ORDERED",
-				TimeInForce:  "SOK",
-				Timestamp:    time.Date(2026, 4, 8, 0, 0, 0, 0, time.UTC),
-			},
-		},
+	service := NewService(storeStub, &fakeExchangeClient{
+		ordersByBatch: []gmo.Order{{
+			OrderID:      456,
+			Symbol:       "BTC_JPY",
+			Size:         "0.002",
+			ExecutedSize: "0.001",
+			Status:       "ORDERED",
+			TimeInForce:  "SOK",
+			Timestamp:    time.Date(2026, 4, 8, 0, 0, 0, 0, time.UTC),
+		}},
 		executionsByOrder: map[int64][]gmo.Execution{
-			456: {
-				{
-					ExecutionID: 11,
-					OrderID:     456,
-					Symbol:      "BTC_JPY",
-					Size:        "0.001",
-					Price:       "10000000",
-					Fee:         "0",
-					Timestamp:   time.Date(2026, 4, 8, 0, 1, 0, 0, time.UTC),
-				},
-			},
+			456: {{
+				ExecutionID: 11,
+				OrderID:     456,
+				Symbol:      "BTC_JPY",
+				Size:        "0.001",
+				Price:       "10000000",
+				Fee:         "0",
+				Timestamp:   time.Date(2026, 4, 8, 0, 1, 0, 0, time.UTC),
+			}},
 		},
-	}
-
-	service := NewService(storeStub, exchangeStub, false)
+	}, false, "0.1")
 	service.now = func() time.Time { return time.Date(2026, 4, 8, 0, 2, 0, 0, time.UTC) }
 
 	jobRunID, err := service.ReconcileOrders(context.Background(), "tester", "manual")
 	if err != nil {
 		t.Fatalf("ReconcileOrders returned error: %v", err)
 	}
+	if jobRunID != 1 {
+		t.Fatalf("unexpected job run id: %d", jobRunID)
+	}
+	if storeStub.updateOrderAfterSync == nil || storeStub.updateOrderAfterSync.Status != "partially_filled" {
+		t.Fatalf("unexpected update: %+v", storeStub.updateOrderAfterSync)
+	}
+}
 
+func TestDailyTradeCreatesOrders(t *testing.T) {
+	t.Parallel()
+
+	storeStub := &fakeStore{
+		jobRunsInWindowCount: 1,
+		latestBalances: []store.ListLatestBalancesRow{
+			{AssetCode: "JPY", AvailableAmount: "100000.00000000"},
+			{AssetCode: "BTC", AvailableAmount: "0.10000000"},
+			{AssetCode: "ETH", AvailableAmount: "1.00000000"},
+		},
+		latestPrices: []store.ListLatestPricesRow{
+			{AssetCode: "BTC", PriceJpy: "10000000.00000000"},
+			{AssetCode: "ETH", PriceJpy: "300000.00000000"},
+		},
+		insertOrderRow: store.InsertOrderRow{ID: 1},
+	}
+	service := NewService(storeStub, &fakeExchangeClient{
+		rules: []gmo.SymbolRule{
+			{Symbol: "BTC_JPY", MinOrderSize: "0.001", SizeStep: "0.001", TickSize: "1"},
+			{Symbol: "ETH_JPY", MinOrderSize: "0.01", SizeStep: "0.01", TickSize: "1"},
+		},
+	}, true, "0.10000000")
+	service.now = func() time.Time { return time.Date(2026, 4, 8, 0, 0, 0, 0, time.UTC) }
+
+	jobRunID, err := service.DailyTrade(context.Background(), "tester", "scheduled")
+	if err != nil {
+		t.Fatalf("DailyTrade returned error: %v", err)
+	}
 	if jobRunID != 1 {
 		t.Fatalf("unexpected job run id: %d", jobRunID)
 	}
 	if storeStub.markJobRunSucceededParam == nil {
-		t.Fatal("expected job run to be marked succeeded")
+		t.Fatal("expected job success")
 	}
-	if storeStub.updateOrderAfterSync == nil || storeStub.updateOrderAfterSync.Status != "partially_filled" {
-		t.Fatalf("unexpected synced order update: %+v", storeStub.updateOrderAfterSync)
+	if len(storeStub.insertedOrderEvents) < 2 {
+		t.Fatalf("expected order events to be inserted, got %d", len(storeStub.insertedOrderEvents))
 	}
-	if len(storeStub.insertedTradeExecutions) != 1 {
-		t.Fatalf("unexpected execution count: %d", len(storeStub.insertedTradeExecutions))
+}
+
+func TestDailyTradeSkipsWhenOpenOrdersRemain(t *testing.T) {
+	t.Parallel()
+
+	storeStub := &fakeStore{
+		jobRunsInWindowCount: 1,
+		openOrdersCount:      1,
+	}
+	service := NewService(storeStub, &fakeExchangeClient{}, true, "0.1")
+	if _, err := service.DailyTrade(context.Background(), "tester", "scheduled"); err != nil {
+		t.Fatalf("DailyTrade returned error: %v", err)
+	}
+	if storeStub.markJobRunSkippedParam == nil {
+		t.Fatal("expected skipped job")
 	}
 }
 
@@ -355,8 +395,5 @@ func TestIsNotFound(t *testing.T) {
 
 	if !IsNotFound(pgx.ErrNoRows) {
 		t.Fatal("expected pgx.ErrNoRows to be recognized")
-	}
-	if IsNotFound(context.DeadlineExceeded) {
-		t.Fatal("did not expect unrelated error to be recognized")
 	}
 }

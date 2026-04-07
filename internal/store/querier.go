@@ -11,6 +11,7 @@ import (
 )
 
 type Querier interface {
+	CountJobRunsByTypeInWindow(ctx context.Context, arg CountJobRunsByTypeInWindowParams) (int64, error)
 	CountOpenOrders(ctx context.Context) (int64, error)
 	CountUnresolvedPreviousDayOrders(ctx context.Context) (int64, error)
 	GetOrder(ctx context.Context, id int64) (GetOrderRow, error)
@@ -31,6 +32,7 @@ type Querier interface {
 	ListReconcilableOrders(ctx context.Context, limitCount int32) ([]ListReconcilableOrdersRow, error)
 	ListWeeklyConsumedBuyUnits(ctx context.Context, windowStartedAt pgtype.Timestamptz) ([]ListWeeklyConsumedBuyUnitsRow, error)
 	MarkJobRunFailed(ctx context.Context, arg MarkJobRunFailedParams) error
+	MarkJobRunSkipped(ctx context.Context, arg MarkJobRunSkippedParams) error
 	MarkJobRunSucceeded(ctx context.Context, arg MarkJobRunSucceededParams) error
 	MarkOrderCancelRequested(ctx context.Context, arg MarkOrderCancelRequestedParams) error
 	MarkOrderCancelled(ctx context.Context, arg MarkOrderCancelledParams) error

@@ -53,7 +53,7 @@ func main() {
 	queries := store.New(dbpool)
 	gmoClient := gmo.NewClient(cfg.APIKey, cfg.APISecretKey)
 	syncService := appsync.NewService(logger, queries, gmoClient)
-	orderService := order.NewService(queries, gmoClient, cfg.DryRun)
+	orderService := order.NewService(queries, gmoClient, cfg.DryRun, cfg.WeeklyLimitUnits)
 	apiHandler := appapi.NewHandler(queries, dbpool, syncService, orderService, cfg.WeeklyLimitUnits)
 	serverInterface := appapi.NewStrictHandlerWithOptions(apiHandler, nil, appapi.StrictHTTPServerOptions{
 		RequestErrorHandlerFunc:  jsonRequestError,
@@ -70,7 +70,14 @@ func main() {
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
-	botService := bot.NewService(logger, syncService, orderService)
+	botService := bot.NewService(
+		logger,
+		syncService,
+		orderService,
+		orderService,
+		cfg.PriceSyncInterval,
+		cfg.OrderReconcileInterval,
+	)
 	errCh := make(chan error, 2)
 
 	go func() {

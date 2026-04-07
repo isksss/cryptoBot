@@ -171,6 +171,14 @@ WHERE side = 'buy'
 GROUP BY asset_code
 ORDER BY asset_code;
 
+-- name: CountJobRunsByTypeInWindow :one
+SELECT COUNT(*)::bigint
+FROM job_runs
+WHERE job_type = sqlc.arg('job_type')
+  AND started_at >= sqlc.arg('window_started_at')
+  AND started_at < sqlc.arg('window_ended_at')
+  AND status IN ('running', 'succeeded', 'skipped');
+
 -- name: ListReconcilableOrders :many
 SELECT
     id,
@@ -211,6 +219,14 @@ WHERE id = sqlc.arg('id');
 -- name: MarkJobRunFailed :exec
 UPDATE job_runs
 SET status = 'failed',
+    finished_at = sqlc.arg('finished_at'),
+    error_code = sqlc.arg('error_code'),
+    error_message = sqlc.arg('error_message')
+WHERE id = sqlc.arg('id');
+
+-- name: MarkJobRunSkipped :exec
+UPDATE job_runs
+SET status = 'skipped',
     finished_at = sqlc.arg('finished_at'),
     error_code = sqlc.arg('error_code'),
     error_message = sqlc.arg('error_message')

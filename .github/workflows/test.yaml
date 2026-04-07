@@ -1,0 +1,55 @@
+name: test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  go-test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: cryptobot
+          POSTGRES_USER: cryptobot
+          POSTGRES_PASSWORD: cryptobot
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U cryptobot -d cryptobot"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      CRYPTOBOT_DATABASE_URL: postgres://cryptobot:cryptobot@localhost:5432/cryptobot?sslmode=disable
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Wait for PostgreSQL
+        run: until pg_isready -h localhost -U cryptobot -d cryptobot; do sleep 1; done
+        env:
+          PGPASSWORD: cryptobot
+
+      - name: Initialize schema
+        run: psql "$CRYPTOBOT_DATABASE_URL" -f db/init/001_schema.sql
+
+      - name: Verify generated code
+        run: |
+          go generate ./internal/api
+          go generate ./internal/store
+          git diff --exit-code
+
+      - name: Run tests
+        run: go test ./...

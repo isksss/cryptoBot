@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"strconv"
+	"time"
 )
 
 // App はアプリ全体で共有する実行時設定です。
@@ -16,6 +17,8 @@ type App struct {
 	APIKey           string
 	APISecretKey     string
 	DryRun           bool
+	PriceSyncInterval time.Duration
+	OrderReconcileInterval time.Duration
 	LogLevel         slog.Level
 }
 
@@ -25,6 +28,14 @@ func Load() (App, error) {
 	if err != nil {
 		return App{}, fmt.Errorf("CRYPTOBOT_DRY_RUN の解釈に失敗: %w", err)
 	}
+	priceSyncInterval, err := time.ParseDuration(EnvOrDefault("CRYPTOBOT_PRICE_SYNC_INTERVAL", "1h"))
+	if err != nil {
+		return App{}, fmt.Errorf("CRYPTOBOT_PRICE_SYNC_INTERVAL の解釈に失敗: %w", err)
+	}
+	orderReconcileInterval, err := time.ParseDuration(EnvOrDefault("CRYPTOBOT_ORDER_RECONCILE_INTERVAL", "5m"))
+	if err != nil {
+		return App{}, fmt.Errorf("CRYPTOBOT_ORDER_RECONCILE_INTERVAL の解釈に失敗: %w", err)
+	}
 
 	cfg := App{
 		DatabaseURL:      os.Getenv("CRYPTOBOT_DATABASE_URL"),
@@ -33,6 +44,8 @@ func Load() (App, error) {
 		APIKey:           os.Getenv("CRYPTOBOT_API_KEY"),
 		APISecretKey:     os.Getenv("CRYPTOBOT_API_SECRET_KEY"),
 		DryRun:           dryRun,
+		PriceSyncInterval: priceSyncInterval,
+		OrderReconcileInterval: orderReconcileInterval,
 		LogLevel:         ParseLogLevel(EnvOrDefault("CRYPTOBOT_LOG_LEVEL", "info")),
 	}
 

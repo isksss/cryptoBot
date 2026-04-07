@@ -27,6 +27,9 @@ type fakeQuerier struct {
 }
 
 func (f *fakeQuerier) CountOpenOrders(context.Context) (int64, error) { return f.openCount, nil }
+func (f *fakeQuerier) CountJobRunsByTypeInWindow(context.Context, store.CountJobRunsByTypeInWindowParams) (int64, error) {
+	return 0, nil
+}
 func (f *fakeQuerier) CountUnresolvedPreviousDayOrders(context.Context) (int64, error) {
 	return f.unresolvedCount, nil
 }
@@ -83,6 +86,7 @@ func (f *fakeQuerier) MarkJobRunFailed(context.Context, store.MarkJobRunFailedPa
 func (f *fakeQuerier) MarkJobRunSucceeded(context.Context, store.MarkJobRunSucceededParams) error {
 	return nil
 }
+func (f *fakeQuerier) MarkJobRunSkipped(context.Context, store.MarkJobRunSkippedParams) error { return nil }
 func (f *fakeQuerier) MarkOrderCancelRequested(context.Context, store.MarkOrderCancelRequestedParams) error {
 	return nil
 }
@@ -112,6 +116,8 @@ type fakeOrderService struct {
 	row            store.InsertOrderRow
 	createErr      error
 	cancelErr      error
+	dailyTradeErr  error
+	dailyTradeJobID int64
 	reconcileErr   error
 	reconcileJobID int64
 	lastCreate     order.CreateInput
@@ -128,6 +134,12 @@ func (f *fakeOrderService) CreateLimitOrder(_ context.Context, input order.Creat
 func (f *fakeOrderService) CancelOrder(_ context.Context, localOrderID int64) error {
 	f.lastCancelled = localOrderID
 	return f.cancelErr
+}
+
+func (f *fakeOrderService) DailyTrade(_ context.Context, requestedBy string, reason string) (int64, error) {
+	f.lastRequestedBy = requestedBy
+	f.lastReason = reason
+	return f.dailyTradeJobID, f.dailyTradeErr
 }
 
 func (f *fakeOrderService) ReconcileOrders(_ context.Context, requestedBy string, reason string) (int64, error) {
@@ -368,6 +380,30 @@ func TestTriggerOrderReconcileJob(t *testing.T) {
 	}
 	if orderSvc.lastRequestedBy != requestedBy || orderSvc.lastReason != reason {
 		t.Fatalf("unexpected reconcile args: %+v", orderSvc)
+	}
+}
+
+func TestTriggerDailyTradeJob(t *testing.T) {
+	t.Parallel()
+
+	orderSvc := &fakeOrderService{dailyTradeJobID: 89}
+	server := NewHandler(&fakeQuerier{}, fakePinger{}, nil, orderSvc, "1")
+	requestedBy := "tester"
+	reason := "manual daily trade"
+
+	resp, err := server.TriggerDailyTradeJob(context.Background(), TriggerDailyTradeJobRequestObject{
+		Body: &TriggerJobRequest{RequestedBy: &requestedBy, Reason: &reason},
+	})
+	if err != nil {
+		t.Fatalf("TriggerDailyTradeJob returned error: %v", err)
+	}
+
+	body := resp.(TriggerDailyTradeJob202JSONResponse)
+	if body.JobRunId != 89 {
+		t.Fatalf("unexpected job run id: %d", body.JobRunId)
+	}
+	if orderSvc.lastRequestedBy != requestedBy || orderSvc.lastReason != reason {
+		t.Fatalf("unexpected daily trade args: %+v", orderSvc)
 	}
 }
 

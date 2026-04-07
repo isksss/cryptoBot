@@ -31,6 +31,7 @@ type priceSyncer interface {
 type orderService interface {
 	CreateLimitOrder(ctx context.Context, input order.CreateInput) (store.InsertOrderRow, error)
 	CancelOrder(ctx context.Context, localOrderID int64) error
+	DailyTrade(ctx context.Context, requestedBy string, reason string) (int64, error)
 	ReconcileOrders(ctx context.Context, requestedBy string, reason string) (int64, error)
 }
 
@@ -476,14 +477,18 @@ func (h *Server) TriggerOrderReconcileJob(ctx context.Context, request TriggerOr
 	return TriggerOrderReconcileJob202JSONResponse{JobRunId: jobRunID, Status: "accepted"}, nil
 }
 
-// TriggerDailyTradeJob は日次売買ジョブの手動起票だけを行います。
+// TriggerDailyTradeJob は日次売買ジョブを即時実行します。
 func (h *Server) TriggerDailyTradeJob(ctx context.Context, request TriggerDailyTradeJobRequestObject) (TriggerDailyTradeJobResponseObject, error) {
-	jobRun, err := h.insertManualJobRun(ctx, DailyTrade, request.Body)
+	if h.orderService == nil {
+		return nil, errors.New("order service is not configured")
+	}
+
+	jobRunID, err := h.orderService.DailyTrade(ctx, requestedBy(request.Body), requestedReason(request.Body))
 	if err != nil {
 		return nil, err
 	}
 
-	return TriggerDailyTradeJob202JSONResponse{JobRunId: jobRun.ID, Status: "accepted"}, nil
+	return TriggerDailyTradeJob202JSONResponse{JobRunId: jobRunID, Status: "accepted"}, nil
 }
 
 // insertManualJobRun は job_runs に手動起票を記録します。

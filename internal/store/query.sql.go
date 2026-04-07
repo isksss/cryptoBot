@@ -11,6 +11,28 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countJobRunsByTypeInWindow = `-- name: CountJobRunsByTypeInWindow :one
+SELECT COUNT(*)::bigint
+FROM job_runs
+WHERE job_type = $1
+  AND started_at >= $2
+  AND started_at < $3
+  AND status IN ('running', 'succeeded', 'skipped')
+`
+
+type CountJobRunsByTypeInWindowParams struct {
+	JobType         string             `json:"job_type"`
+	WindowStartedAt pgtype.Timestamptz `json:"window_started_at"`
+	WindowEndedAt   pgtype.Timestamptz `json:"window_ended_at"`
+}
+
+func (q *Queries) CountJobRunsByTypeInWindow(ctx context.Context, arg CountJobRunsByTypeInWindowParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countJobRunsByTypeInWindow, arg.JobType, arg.WindowStartedAt, arg.WindowEndedAt)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const countOpenOrders = `-- name: CountOpenOrders :one
 SELECT COUNT(*)::bigint
 FROM orders
@@ -1082,6 +1104,32 @@ type MarkJobRunFailedParams struct {
 
 func (q *Queries) MarkJobRunFailed(ctx context.Context, arg MarkJobRunFailedParams) error {
 	_, err := q.db.Exec(ctx, markJobRunFailed,
+		arg.FinishedAt,
+		arg.ErrorCode,
+		arg.ErrorMessage,
+		arg.ID,
+	)
+	return err
+}
+
+const markJobRunSkipped = `-- name: MarkJobRunSkipped :exec
+UPDATE job_runs
+SET status = 'skipped',
+    finished_at = $1,
+    error_code = $2,
+    error_message = $3
+WHERE id = $4
+`
+
+type MarkJobRunSkippedParams struct {
+	FinishedAt   pgtype.Timestamptz `json:"finished_at"`
+	ErrorCode    *string            `json:"error_code"`
+	ErrorMessage *string            `json:"error_message"`
+	ID           int64              `json:"id"`
+}
+
+func (q *Queries) MarkJobRunSkipped(ctx context.Context, arg MarkJobRunSkippedParams) error {
+	_, err := q.db.Exec(ctx, markJobRunSkipped,
 		arg.FinishedAt,
 		arg.ErrorCode,
 		arg.ErrorMessage,

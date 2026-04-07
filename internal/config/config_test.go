@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestLoadDotEnv(t *testing.T) {
@@ -51,6 +52,8 @@ func TestLoad(t *testing.T) {
 	t.Setenv("CRYPTOBOT_API_SECRET_KEY", "secret")
 	t.Setenv("CRYPTOBOT_LOG_LEVEL", "debug")
 	t.Setenv("CRYPTOBOT_DRY_RUN", "true")
+	t.Setenv("CRYPTOBOT_PRICE_SYNC_INTERVAL", "30m")
+	t.Setenv("CRYPTOBOT_ORDER_RECONCILE_INTERVAL", "2m")
 
 	cfg, err := Load()
 	if err != nil {
@@ -68,6 +71,12 @@ func TestLoad(t *testing.T) {
 	}
 	if !cfg.DryRun {
 		t.Fatal("expected dry run to be enabled")
+	}
+	if cfg.PriceSyncInterval != 30*time.Minute {
+		t.Fatalf("unexpected price sync interval: %s", cfg.PriceSyncInterval)
+	}
+	if cfg.OrderReconcileInterval != 2*time.Minute {
+		t.Fatalf("unexpected order reconcile interval: %s", cfg.OrderReconcileInterval)
 	}
 }
 
