@@ -218,6 +218,186 @@ func (q *Queries) InsertJobRun(ctx context.Context, arg InsertJobRunParams) (Ins
 	return i, err
 }
 
+const insertOrder = `-- name: InsertOrder :one
+INSERT INTO orders (
+    job_run_id,
+    exchange_order_id,
+    client_order_id,
+    asset_code,
+    side,
+    order_type,
+    status,
+    price_jpy,
+    ordered_units,
+    filled_units,
+    remaining_units,
+    fee_jpy,
+    is_fee_free,
+    placed_at,
+    expires_at,
+    last_status_checked_at
+) VALUES (
+    $1,
+    $2,
+    $3,
+    $4,
+    $5,
+    $6,
+    $7,
+    $8,
+    $9,
+    $10,
+    $11,
+    $12,
+    $13,
+    $14,
+    $15,
+    $16
+)
+RETURNING
+    id,
+    exchange_order_id,
+    client_order_id,
+    asset_code,
+    side,
+    order_type,
+    status,
+    price_jpy::text AS price_jpy,
+    ordered_units::text AS ordered_units,
+    filled_units::text AS filled_units,
+    remaining_units::text AS remaining_units,
+    fee_jpy::text AS fee_jpy,
+    is_fee_free,
+    placed_at,
+    expires_at,
+    cancelled_at,
+    last_status_checked_at
+`
+
+type InsertOrderParams struct {
+	JobRunID            *int64             `json:"job_run_id"`
+	ExchangeOrderID     string             `json:"exchange_order_id"`
+	ClientOrderID       pgtype.UUID        `json:"client_order_id"`
+	AssetCode           string             `json:"asset_code"`
+	Side                string             `json:"side"`
+	OrderType           string             `json:"order_type"`
+	Status              string             `json:"status"`
+	PriceJpy            pgtype.Numeric     `json:"price_jpy"`
+	OrderedUnits        pgtype.Numeric     `json:"ordered_units"`
+	FilledUnits         pgtype.Numeric     `json:"filled_units"`
+	RemainingUnits      pgtype.Numeric     `json:"remaining_units"`
+	FeeJpy              pgtype.Numeric     `json:"fee_jpy"`
+	IsFeeFree           bool               `json:"is_fee_free"`
+	PlacedAt            pgtype.Timestamptz `json:"placed_at"`
+	ExpiresAt           pgtype.Timestamptz `json:"expires_at"`
+	LastStatusCheckedAt pgtype.Timestamptz `json:"last_status_checked_at"`
+}
+
+type InsertOrderRow struct {
+	ID                  int64              `json:"id"`
+	ExchangeOrderID     string             `json:"exchange_order_id"`
+	ClientOrderID       pgtype.UUID        `json:"client_order_id"`
+	AssetCode           string             `json:"asset_code"`
+	Side                string             `json:"side"`
+	OrderType           string             `json:"order_type"`
+	Status              string             `json:"status"`
+	PriceJpy            string             `json:"price_jpy"`
+	OrderedUnits        string             `json:"ordered_units"`
+	FilledUnits         string             `json:"filled_units"`
+	RemainingUnits      string             `json:"remaining_units"`
+	FeeJpy              string             `json:"fee_jpy"`
+	IsFeeFree           bool               `json:"is_fee_free"`
+	PlacedAt            pgtype.Timestamptz `json:"placed_at"`
+	ExpiresAt           pgtype.Timestamptz `json:"expires_at"`
+	CancelledAt         pgtype.Timestamptz `json:"cancelled_at"`
+	LastStatusCheckedAt pgtype.Timestamptz `json:"last_status_checked_at"`
+}
+
+func (q *Queries) InsertOrder(ctx context.Context, arg InsertOrderParams) (InsertOrderRow, error) {
+	row := q.db.QueryRow(ctx, insertOrder,
+		arg.JobRunID,
+		arg.ExchangeOrderID,
+		arg.ClientOrderID,
+		arg.AssetCode,
+		arg.Side,
+		arg.OrderType,
+		arg.Status,
+		arg.PriceJpy,
+		arg.OrderedUnits,
+		arg.FilledUnits,
+		arg.RemainingUnits,
+		arg.FeeJpy,
+		arg.IsFeeFree,
+		arg.PlacedAt,
+		arg.ExpiresAt,
+		arg.LastStatusCheckedAt,
+	)
+	var i InsertOrderRow
+	err := row.Scan(
+		&i.ID,
+		&i.ExchangeOrderID,
+		&i.ClientOrderID,
+		&i.AssetCode,
+		&i.Side,
+		&i.OrderType,
+		&i.Status,
+		&i.PriceJpy,
+		&i.OrderedUnits,
+		&i.FilledUnits,
+		&i.RemainingUnits,
+		&i.FeeJpy,
+		&i.IsFeeFree,
+		&i.PlacedAt,
+		&i.ExpiresAt,
+		&i.CancelledAt,
+		&i.LastStatusCheckedAt,
+	)
+	return i, err
+}
+
+const insertOrderEvent = `-- name: InsertOrderEvent :exec
+INSERT INTO order_events (
+    order_id,
+    job_run_id,
+    event_type,
+    from_status,
+    to_status,
+    event_at,
+    payload
+) VALUES (
+    $1,
+    $2,
+    $3,
+    $4,
+    $5,
+    $6,
+    $7
+)
+`
+
+type InsertOrderEventParams struct {
+	OrderID    int64              `json:"order_id"`
+	JobRunID   *int64             `json:"job_run_id"`
+	EventType  string             `json:"event_type"`
+	FromStatus *string            `json:"from_status"`
+	ToStatus   *string            `json:"to_status"`
+	EventAt    pgtype.Timestamptz `json:"event_at"`
+	Payload    []byte             `json:"payload"`
+}
+
+func (q *Queries) InsertOrderEvent(ctx context.Context, arg InsertOrderEventParams) error {
+	_, err := q.db.Exec(ctx, insertOrderEvent,
+		arg.OrderID,
+		arg.JobRunID,
+		arg.EventType,
+		arg.FromStatus,
+		arg.ToStatus,
+		arg.EventAt,
+		arg.Payload,
+	)
+	return err
+}
+
 const insertPriceSnapshot = `-- name: InsertPriceSnapshot :one
 INSERT INTO price_snapshots (
     asset_code,
@@ -264,6 +444,50 @@ func (q *Queries) InsertPriceSnapshot(ctx context.Context, arg InsertPriceSnapsh
 		&i.Source,
 	)
 	return i, err
+}
+
+const insertTradeExecution = `-- name: InsertTradeExecution :exec
+INSERT INTO trade_executions (
+    order_id,
+    exchange_execution_id,
+    executed_at,
+    price_jpy,
+    executed_units,
+    fee_jpy,
+    is_partial_fill
+) VALUES (
+    $1,
+    $2,
+    $3,
+    $4,
+    $5,
+    $6,
+    $7
+)
+ON CONFLICT (exchange_execution_id) DO NOTHING
+`
+
+type InsertTradeExecutionParams struct {
+	OrderID             int64              `json:"order_id"`
+	ExchangeExecutionID string             `json:"exchange_execution_id"`
+	ExecutedAt          pgtype.Timestamptz `json:"executed_at"`
+	PriceJpy            pgtype.Numeric     `json:"price_jpy"`
+	ExecutedUnits       pgtype.Numeric     `json:"executed_units"`
+	FeeJpy              pgtype.Numeric     `json:"fee_jpy"`
+	IsPartialFill       bool               `json:"is_partial_fill"`
+}
+
+func (q *Queries) InsertTradeExecution(ctx context.Context, arg InsertTradeExecutionParams) error {
+	_, err := q.db.Exec(ctx, insertTradeExecution,
+		arg.OrderID,
+		arg.ExchangeExecutionID,
+		arg.ExecutedAt,
+		arg.PriceJpy,
+		arg.ExecutedUnits,
+		arg.FeeJpy,
+		arg.IsPartialFill,
+	)
+	return err
 }
 
 const listExecutions = `-- name: ListExecutions :many
@@ -753,6 +977,56 @@ func (q *Queries) ListPriceHistory(ctx context.Context, arg ListPriceHistoryPara
 	return items, nil
 }
 
+const listReconcilableOrders = `-- name: ListReconcilableOrders :many
+SELECT
+    id,
+    exchange_order_id,
+    asset_code,
+    status,
+    ordered_units::text AS ordered_units,
+    filled_units::text AS filled_units
+FROM orders
+WHERE status IN ('open', 'partially_filled', 'cancel_requested')
+ORDER BY placed_at ASC, id ASC
+LIMIT $1
+`
+
+type ListReconcilableOrdersRow struct {
+	ID              int64  `json:"id"`
+	ExchangeOrderID string `json:"exchange_order_id"`
+	AssetCode       string `json:"asset_code"`
+	Status          string `json:"status"`
+	OrderedUnits    string `json:"ordered_units"`
+	FilledUnits     string `json:"filled_units"`
+}
+
+func (q *Queries) ListReconcilableOrders(ctx context.Context, limitCount int32) ([]ListReconcilableOrdersRow, error) {
+	rows, err := q.db.Query(ctx, listReconcilableOrders, limitCount)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListReconcilableOrdersRow{}
+	for rows.Next() {
+		var i ListReconcilableOrdersRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ExchangeOrderID,
+			&i.AssetCode,
+			&i.Status,
+			&i.OrderedUnits,
+			&i.FilledUnits,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listWeeklyConsumedBuyUnits = `-- name: ListWeeklyConsumedBuyUnits :many
 SELECT
     asset_code,
@@ -832,5 +1106,77 @@ type MarkJobRunSucceededParams struct {
 
 func (q *Queries) MarkJobRunSucceeded(ctx context.Context, arg MarkJobRunSucceededParams) error {
 	_, err := q.db.Exec(ctx, markJobRunSucceeded, arg.FinishedAt, arg.ID)
+	return err
+}
+
+const markOrderCancelRequested = `-- name: MarkOrderCancelRequested :exec
+UPDATE orders
+SET status = 'cancel_requested',
+    last_status_checked_at = $1,
+    updated_at = NOW()
+WHERE id = $2
+`
+
+type MarkOrderCancelRequestedParams struct {
+	CheckedAt pgtype.Timestamptz `json:"checked_at"`
+	ID        int64              `json:"id"`
+}
+
+func (q *Queries) MarkOrderCancelRequested(ctx context.Context, arg MarkOrderCancelRequestedParams) error {
+	_, err := q.db.Exec(ctx, markOrderCancelRequested, arg.CheckedAt, arg.ID)
+	return err
+}
+
+const markOrderCancelled = `-- name: MarkOrderCancelled :exec
+UPDATE orders
+SET status = 'cancelled',
+    cancelled_at = $1,
+    last_status_checked_at = $1,
+    updated_at = NOW()
+WHERE id = $2
+`
+
+type MarkOrderCancelledParams struct {
+	CancelledAt pgtype.Timestamptz `json:"cancelled_at"`
+	ID          int64              `json:"id"`
+}
+
+func (q *Queries) MarkOrderCancelled(ctx context.Context, arg MarkOrderCancelledParams) error {
+	_, err := q.db.Exec(ctx, markOrderCancelled, arg.CancelledAt, arg.ID)
+	return err
+}
+
+const updateOrderAfterSync = `-- name: UpdateOrderAfterSync :exec
+UPDATE orders
+SET status = $1,
+    filled_units = $2,
+    remaining_units = $3,
+    fee_jpy = $4,
+    cancelled_at = $5,
+    last_status_checked_at = $6,
+    updated_at = NOW()
+WHERE id = $7
+`
+
+type UpdateOrderAfterSyncParams struct {
+	Status         string             `json:"status"`
+	FilledUnits    pgtype.Numeric     `json:"filled_units"`
+	RemainingUnits pgtype.Numeric     `json:"remaining_units"`
+	FeeJpy         pgtype.Numeric     `json:"fee_jpy"`
+	CancelledAt    pgtype.Timestamptz `json:"cancelled_at"`
+	CheckedAt      pgtype.Timestamptz `json:"checked_at"`
+	ID             int64              `json:"id"`
+}
+
+func (q *Queries) UpdateOrderAfterSync(ctx context.Context, arg UpdateOrderAfterSyncParams) error {
+	_, err := q.db.Exec(ctx, updateOrderAfterSync,
+		arg.Status,
+		arg.FilledUnits,
+		arg.RemainingUnits,
+		arg.FeeJpy,
+		arg.CancelledAt,
+		arg.CheckedAt,
+		arg.ID,
+	)
 	return err
 }

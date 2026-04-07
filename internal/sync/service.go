@@ -27,6 +27,7 @@ type gmoClient interface {
 	GetTicker(ctx context.Context, symbol string) (gmo.Ticker, error)
 }
 
+// Service は GMO の価格・残高を PostgreSQL に保存する同期サービスです。
 type Service struct {
 	logger  *slog.Logger
 	queries queryStore
@@ -34,6 +35,7 @@ type Service struct {
 	now     func() time.Time
 }
 
+// NewService は価格同期サービスを初期化します。
 func NewService(logger *slog.Logger, queries queryStore, client gmoClient) *Service {
 	return &Service{
 		logger:  logger,
@@ -43,6 +45,7 @@ func NewService(logger *slog.Logger, queries queryStore, client gmoClient) *Serv
 	}
 }
 
+// SyncPriceAndBalances は job_runs を起票し、価格と残高の取得を実行します。
 func (s *Service) SyncPriceAndBalances(ctx context.Context, requestedBy string, reason string) (int64, error) {
 	now := s.now().UTC()
 	metadata, err := json.Marshal(map[string]string{
@@ -87,6 +90,7 @@ func (s *Service) SyncPriceAndBalances(ctx context.Context, requestedBy string, 
 	return jobRun.ID, nil
 }
 
+// syncPriceAndBalances は GMO から取得した値を各スナップショットテーブルへ保存します。
 func (s *Service) syncPriceAndBalances(ctx context.Context, jobRunID int64) error {
 	assets, err := s.client.GetAssets(ctx)
 	if err != nil {
@@ -148,6 +152,7 @@ func (s *Service) syncPriceAndBalances(ctx context.Context, jobRunID int64) erro
 	return nil
 }
 
+// parseNumeric は GMO の decimal string を pgtype.Numeric に変換します。
 func parseNumeric(value string) (pgtype.Numeric, error) {
 	rat, ok := new(big.Rat).SetString(value)
 	if !ok {
@@ -161,6 +166,7 @@ func parseNumeric(value string) (pgtype.Numeric, error) {
 	return n, nil
 }
 
+// subtractNumeric は total - available からロック数量を導出します。
 func subtractNumeric(left pgtype.Numeric, right pgtype.Numeric) (pgtype.Numeric, error) {
 	leftRat, err := numericToRat(left)
 	if err != nil {
@@ -183,6 +189,7 @@ func subtractNumeric(left pgtype.Numeric, right pgtype.Numeric) (pgtype.Numeric,
 	return out, nil
 }
 
+// numericToRat は pgtype.Numeric を誤差なく演算できる big.Rat に直します。
 func numericToRat(n pgtype.Numeric) (*big.Rat, error) {
 	if !n.Valid || n.Int == nil {
 		return big.NewRat(0, 1), nil
@@ -200,6 +207,7 @@ func numericToRat(n pgtype.Numeric) (*big.Rat, error) {
 	return r, nil
 }
 
+// toPgTimestamptz は sqlc 用の timestamptz 値を作ります。
 func toPgTimestamptz(t time.Time) pgtype.Timestamptz {
 	return pgtype.Timestamptz{
 		Time:  t,
@@ -207,6 +215,7 @@ func toPgTimestamptz(t time.Time) pgtype.Timestamptz {
 	}
 }
 
+// stringPtr は nullable string を作る補助関数です。
 func stringPtr(value string) *string {
 	return &value
 }

@@ -171,6 +171,19 @@ WHERE side = 'buy'
 GROUP BY asset_code
 ORDER BY asset_code;
 
+-- name: ListReconcilableOrders :many
+SELECT
+    id,
+    exchange_order_id,
+    asset_code,
+    status,
+    ordered_units::text AS ordered_units,
+    filled_units::text AS filled_units
+FROM orders
+WHERE status IN ('open', 'partially_filled', 'cancel_requested')
+ORDER BY placed_at ASC, id ASC
+LIMIT sqlc.arg('limit_count');
+
 -- name: InsertJobRun :one
 INSERT INTO job_runs (
     job_type,
@@ -232,3 +245,123 @@ INSERT INTO balance_snapshots (
     sqlc.arg('captured_at')
 )
 RETURNING id, job_run_id, asset_code, available_amount::text AS available_amount, locked_amount::text AS locked_amount, captured_at;
+
+-- name: InsertOrder :one
+INSERT INTO orders (
+    job_run_id,
+    exchange_order_id,
+    client_order_id,
+    asset_code,
+    side,
+    order_type,
+    status,
+    price_jpy,
+    ordered_units,
+    filled_units,
+    remaining_units,
+    fee_jpy,
+    is_fee_free,
+    placed_at,
+    expires_at,
+    last_status_checked_at
+) VALUES (
+    sqlc.narg('job_run_id'),
+    sqlc.arg('exchange_order_id'),
+    sqlc.arg('client_order_id'),
+    sqlc.arg('asset_code'),
+    sqlc.arg('side'),
+    sqlc.arg('order_type'),
+    sqlc.arg('status'),
+    sqlc.arg('price_jpy'),
+    sqlc.arg('ordered_units'),
+    sqlc.arg('filled_units'),
+    sqlc.arg('remaining_units'),
+    sqlc.arg('fee_jpy'),
+    sqlc.arg('is_fee_free'),
+    sqlc.arg('placed_at'),
+    sqlc.narg('expires_at'),
+    sqlc.arg('last_status_checked_at')
+)
+RETURNING
+    id,
+    exchange_order_id,
+    client_order_id,
+    asset_code,
+    side,
+    order_type,
+    status,
+    price_jpy::text AS price_jpy,
+    ordered_units::text AS ordered_units,
+    filled_units::text AS filled_units,
+    remaining_units::text AS remaining_units,
+    fee_jpy::text AS fee_jpy,
+    is_fee_free,
+    placed_at,
+    expires_at,
+    cancelled_at,
+    last_status_checked_at;
+
+-- name: InsertOrderEvent :exec
+INSERT INTO order_events (
+    order_id,
+    job_run_id,
+    event_type,
+    from_status,
+    to_status,
+    event_at,
+    payload
+) VALUES (
+    sqlc.arg('order_id'),
+    sqlc.narg('job_run_id'),
+    sqlc.arg('event_type'),
+    sqlc.narg('from_status'),
+    sqlc.narg('to_status'),
+    sqlc.arg('event_at'),
+    sqlc.arg('payload')
+);
+
+-- name: MarkOrderCancelRequested :exec
+UPDATE orders
+SET status = 'cancel_requested',
+    last_status_checked_at = sqlc.arg('checked_at'),
+    updated_at = NOW()
+WHERE id = sqlc.arg('id');
+
+-- name: MarkOrderCancelled :exec
+UPDATE orders
+SET status = 'cancelled',
+    cancelled_at = sqlc.arg('cancelled_at'),
+    last_status_checked_at = sqlc.arg('cancelled_at'),
+    updated_at = NOW()
+WHERE id = sqlc.arg('id');
+
+-- name: UpdateOrderAfterSync :exec
+UPDATE orders
+SET status = sqlc.arg('status'),
+    filled_units = sqlc.arg('filled_units'),
+    remaining_units = sqlc.arg('remaining_units'),
+    fee_jpy = sqlc.arg('fee_jpy'),
+    cancelled_at = sqlc.narg('cancelled_at'),
+    last_status_checked_at = sqlc.arg('checked_at'),
+    updated_at = NOW()
+WHERE id = sqlc.arg('id');
+
+-- name: InsertTradeExecution :exec
+INSERT INTO trade_executions (
+    order_id,
+    exchange_execution_id,
+    executed_at,
+    price_jpy,
+    executed_units,
+    fee_jpy,
+    is_partial_fill
+) VALUES (
+    sqlc.arg('order_id'),
+    sqlc.arg('exchange_execution_id'),
+    sqlc.arg('executed_at'),
+    sqlc.arg('price_jpy'),
+    sqlc.arg('executed_units'),
+    sqlc.arg('fee_jpy'),
+    sqlc.arg('is_partial_fill')
+)
+ON CONFLICT (exchange_execution_id) DO NOTHING;

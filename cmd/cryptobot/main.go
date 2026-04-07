@@ -10,8 +10,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strconv"
-	"strings"
 	"syscall"
 	"time"
 
@@ -19,27 +17,21 @@ import (
 
 	appapi "github.com/isksss/cryptoBot/internal/api"
 	"github.com/isksss/cryptoBot/internal/bot"
+	appconfig "github.com/isksss/cryptoBot/internal/config"
 	"github.com/isksss/cryptoBot/internal/gmo"
+	"github.com/isksss/cryptoBot/internal/order"
 	"github.com/isksss/cryptoBot/internal/store"
 	appsync "github.com/isksss/cryptoBot/internal/sync"
 )
 
-type config struct {
-	DatabaseURL      string
-	HTTPAddr         string
-	WeeklyLimitUnits string
-	APIKey           string
-	APISecretKey     string
-	LogLevel         slog.Level
-}
-
+// main は bot 実行系と管理 API を同じバイナリで起動します。
 func main() {
-	if err := loadDotEnv(".env"); err != nil {
+	if err := appconfig.LoadDotEnv(".env"); err != nil {
 		slog.Error("load .env", slog.Any("error", err))
 		os.Exit(1)
 	}
 
-	cfg, err := loadConfig()
+	cfg, err := appconfig.Load()
 	if err != nil {
 		slog.Error("load config", slog.Any("error", err))
 		os.Exit(1)
@@ -61,7 +53,8 @@ func main() {
 	queries := store.New(dbpool)
 	gmoClient := gmo.NewClient(cfg.APIKey, cfg.APISecretKey)
 	syncService := appsync.NewService(logger, queries, gmoClient)
-	apiHandler := appapi.NewHandler(queries, dbpool, syncService, cfg.WeeklyLimitUnits)
+	orderService := order.NewService(queries, gmoClient, cfg.DryRun)
+	apiHandler := appapi.NewHandler(queries, dbpool, syncService, orderService, cfg.WeeklyLimitUnits)
 	serverInterface := appapi.NewStrictHandlerWithOptions(apiHandler, nil, appapi.StrictHTTPServerOptions{
 		RequestErrorHandlerFunc:  jsonRequestError,
 		ResponseErrorHandlerFunc: jsonResponseError,
@@ -77,7 +70,7 @@ func main() {
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
-	botService := bot.NewService(logger, syncService)
+	botService := bot.NewService(logger, syncService, orderService)
 	errCh := make(chan error, 2)
 
 	go func() {
@@ -87,7 +80,7 @@ func main() {
 	}()
 
 	go func() {
-		logger.Info("http server started", slog.String("addr", cfg.HTTPAddr))
+		logger.Info("http server started", slog.String("addr", cfg.HTTPAddr), slog.Bool("dryRun", cfg.DryRun))
 		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			errCh <- err
 		}
@@ -110,92 +103,17 @@ func main() {
 	}
 }
 
-func loadConfig() (config, error) {
-	cfg := config{
-		DatabaseURL:      os.Getenv("CRYPTOBOT_DATABASE_URL"),
-		HTTPAddr:         envOrDefault("CRYPTOBOT_HTTP_ADDR", ":8080"),
-		WeeklyLimitUnits: envOrDefault("CRYPTOBOT_WEEKLY_LIMIT_UNITS", "0"),
-		APIKey:           os.Getenv("CRYPTOBOT_API_KEY"),
-		APISecretKey:     os.Getenv("CRYPTOBOT_API_SECRET_KEY"),
-		LogLevel:         parseLogLevel(envOrDefault("CRYPTOBOT_LOG_LEVEL", "info")),
-	}
-
-	if cfg.DatabaseURL == "" {
-		return config{}, errors.New("CRYPTOBOT_DATABASE_URL is required")
-	}
-	if cfg.APIKey == "" {
-		return config{}, errors.New("CRYPTOBOT_API_KEY is required")
-	}
-	if cfg.APISecretKey == "" {
-		return config{}, errors.New("CRYPTOBOT_API_SECRET_KEY is required")
-	}
-
-	return cfg, nil
-}
-
-func envOrDefault(key string, defaultValue string) string {
-	value := os.Getenv(key)
-	if value == "" {
-		return defaultValue
-	}
-	return value
-}
-
-func parseLogLevel(value string) slog.Level {
-	var level slog.Level
-	if err := level.UnmarshalText([]byte(value)); err != nil {
-		return slog.LevelInfo
-	}
-	return level
-}
-
-func loadDotEnv(path string) error {
-	body, err := os.ReadFile(path)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return nil
-		}
-		return err
-	}
-
-	lines := strings.Split(string(body), "\n")
-	for i, line := range lines {
-		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-
-		key, value, found := strings.Cut(line, "=")
-		if !found {
-			return errors.New("invalid .env line " + strconv.Itoa(i+1))
-		}
-
-		key = strings.TrimSpace(key)
-		value = strings.TrimSpace(value)
-		value = strings.Trim(value, `"'`)
-		if key == "" {
-			return errors.New("empty key in .env line " + strconv.Itoa(i+1))
-		}
-
-		if _, exists := os.LookupEnv(key); exists {
-			continue
-		}
-		if err := os.Setenv(key, value); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
+// jsonRequestError は strict handler の入力エラーを JSON で返します。
 func jsonRequestError(w http.ResponseWriter, _ *http.Request, err error) {
 	writeJSONError(w, http.StatusBadRequest, "bad_request", err.Error())
 }
 
+// jsonResponseError は strict handler の内部エラーを JSON で返します。
 func jsonResponseError(w http.ResponseWriter, _ *http.Request, err error) {
 	writeJSONError(w, http.StatusInternalServerError, "internal_error", err.Error())
 }
 
+// writeJSONError は API 全体で共通のエラーレスポンス形式を扱います。
 func writeJSONError(w http.ResponseWriter, status int, code string, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
@@ -205,6 +123,7 @@ func writeJSONError(w http.ResponseWriter, status int, code string, message stri
 	})
 }
 
+// normalizeEmptyJSONBody は body なし POST を OpenAPI デコーダが扱えるよう補正します。
 func normalizeEmptyJSONBody(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodPost && r.ContentLength == 0 && r.URL.Path != "" {

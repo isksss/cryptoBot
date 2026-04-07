@@ -4,12 +4,12 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/isksss/cryptoBot/internal/config"
 	"github.com/isksss/cryptoBot/internal/store"
 )
 
@@ -82,21 +82,12 @@ func testEnv(key string) string {
 	}
 
 	for _, path := range []string{".env", filepath.Join("..", "..", ".env")} {
-		body, err := os.ReadFile(path)
+		values, err := config.ReadDotEnv(path)
 		if err != nil {
 			continue
 		}
-
-		for _, line := range strings.Split(string(body), "\n") {
-			line = strings.TrimSpace(line)
-			if line == "" || strings.HasPrefix(line, "#") {
-				continue
-			}
-			k, v, ok := strings.Cut(line, "=")
-			if !ok || k != key {
-				continue
-			}
-			return strings.Trim(v, `"'`)
+		if value, ok := values[key]; ok {
+			return value
 		}
 	}
 	return ""

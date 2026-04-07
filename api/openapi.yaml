@@ -101,6 +101,23 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/OrderListResponse"
+    post:
+      operationId: createOrder
+      tags: [orders]
+      summary: 注文を作成
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOrderRequest"
+      responses:
+        "201":
+          description: 注文作成結果
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateOrderResponse"
   /api/v1/orders/{orderId}:
     get:
       operationId: getOrder
@@ -115,6 +132,22 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/OrderDetailResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/orders/{orderId}/cancel:
+    post:
+      operationId: cancelOrder
+      tags: [orders]
+      summary: 注文を取消
+      parameters:
+        - $ref: "#/components/parameters/OrderId"
+      responses:
+        "200":
+          description: 注文取消結果
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CancelOrderResponse"
         "404":
           $ref: "#/components/responses/NotFound"
   /api/v1/executions:
@@ -650,3 +683,38 @@ components:
           type: string
         message:
           type: string
+    CreateOrderRequest:
+      type: object
+      required: [assetCode, side, priceJpy, units]
+      properties:
+        assetCode:
+          $ref: "#/components/schemas/AssetCode"
+        side:
+          $ref: "#/components/schemas/OrderSide"
+        priceJpy:
+          type: string
+          description: decimal string
+        units:
+          type: string
+          description: decimal string
+        timeInForce:
+          type: string
+          enum: [FAK, FAS, FOK, SOK]
+          default: FAS
+        requestedBy:
+          type: string
+    CreateOrderResponse:
+      type: object
+      required: [order]
+      properties:
+        order:
+          $ref: "#/components/schemas/Order"
+    CancelOrderResponse:
+      type: object
+      required: [orderId, status]
+      properties:
+        orderId:
+          type: integer
+          format: int64
+        status:
+          $ref: "#/components/schemas/OrderStatus"
