@@ -1,0 +1,623 @@
+openapi: 3.0.3
+info:
+  title: CryptoBot API
+  version: 0.1.0
+  description: |
+    CryptoBot の管理 API。
+    売買 bot と Web UI は同一バイナリで稼働し、この API を通じて監視と手動操作を行う。
+servers:
+  - url: http://localhost:8080
+tags:
+  - name: system
+  - name: prices
+  - name: orders
+  - name: executions
+  - name: jobs
+paths:
+  /healthz:
+    get:
+      operationId: getHealth
+      tags: [system]
+      summary: ヘルスチェック
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+  /api/v1/system/summary:
+    get:
+      operationId: getSystemSummary
+      tags: [system]
+      summary: ダッシュボード向けのサマリーを取得
+      responses:
+        "200":
+          description: 現在の稼働状況
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SystemSummaryResponse"
+  /api/v1/prices/latest:
+    get:
+      operationId: getLatestPrices
+      tags: [prices]
+      summary: 最新価格を取得
+      parameters:
+        - $ref: "#/components/parameters/AssetCode"
+      responses:
+        "200":
+          description: 最新価格一覧
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LatestPricesResponse"
+  /api/v1/prices/history:
+    get:
+      operationId: listPriceHistory
+      tags: [prices]
+      summary: 価格履歴を取得
+      parameters:
+        - $ref: "#/components/parameters/AssetCodeRequired"
+        - $ref: "#/components/parameters/FromAt"
+        - $ref: "#/components/parameters/ToAt"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: 価格履歴
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PriceHistoryResponse"
+  /api/v1/orders:
+    get:
+      operationId: listOrders
+      tags: [orders]
+      summary: 注文一覧を取得
+      parameters:
+        - $ref: "#/components/parameters/AssetCode"
+        - $ref: "#/components/parameters/OrderSide"
+        - $ref: "#/components/parameters/OrderStatus"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: 注文一覧
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderListResponse"
+  /api/v1/orders/{orderId}:
+    get:
+      operationId: getOrder
+      tags: [orders]
+      summary: 注文詳細を取得
+      parameters:
+        - $ref: "#/components/parameters/OrderId"
+      responses:
+        "200":
+          description: 注文詳細
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderDetailResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/executions:
+    get:
+      operationId: listExecutions
+      tags: [executions]
+      summary: 約定履歴を取得
+      parameters:
+        - $ref: "#/components/parameters/AssetCode"
+        - $ref: "#/components/parameters/OrderIdOptional"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: 約定履歴
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExecutionListResponse"
+  /api/v1/job-runs:
+    get:
+      operationId: listJobRuns
+      tags: [jobs]
+      summary: ジョブ実行履歴を取得
+      parameters:
+        - $ref: "#/components/parameters/JobType"
+        - $ref: "#/components/parameters/JobStatus"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: ジョブ実行履歴
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobRunListResponse"
+  /api/v1/job-runs/price-fetch:
+    post:
+      operationId: triggerPriceFetchJob
+      tags: [jobs]
+      summary: 価格取得ジョブを手動起動
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TriggerJobRequest"
+      responses:
+        "202":
+          description: 起動受付
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TriggerJobResponse"
+  /api/v1/job-runs/order-reconcile:
+    post:
+      operationId: triggerOrderReconcileJob
+      tags: [jobs]
+      summary: 注文同期ジョブを手動起動
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TriggerJobRequest"
+      responses:
+        "202":
+          description: 起動受付
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TriggerJobResponse"
+  /api/v1/job-runs/daily-trade:
+    post:
+      operationId: triggerDailyTradeJob
+      tags: [jobs]
+      summary: 日次売買ジョブを手動起動
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TriggerJobRequest"
+      responses:
+        "202":
+          description: 起動受付
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TriggerJobResponse"
+components:
+  parameters:
+    AssetCode:
+      name: assetCode
+      in: query
+      required: false
+      schema:
+        $ref: "#/components/schemas/AssetCode"
+    AssetCodeRequired:
+      name: assetCode
+      in: query
+      required: true
+      schema:
+        $ref: "#/components/schemas/AssetCode"
+    FromAt:
+      name: from
+      in: query
+      required: false
+      schema:
+        type: string
+        format: date-time
+    ToAt:
+      name: to
+      in: query
+      required: false
+      schema:
+        type: string
+        format: date-time
+    Limit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 500
+        default: 100
+    OrderSide:
+      name: side
+      in: query
+      required: false
+      schema:
+        $ref: "#/components/schemas/OrderSide"
+    OrderStatus:
+      name: status
+      in: query
+      required: false
+      schema:
+        $ref: "#/components/schemas/OrderStatus"
+    JobType:
+      name: jobType
+      in: query
+      required: false
+      schema:
+        $ref: "#/components/schemas/JobType"
+    JobStatus:
+      name: status
+      in: query
+      required: false
+      schema:
+        $ref: "#/components/schemas/JobRunStatus"
+    OrderId:
+      name: orderId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+    OrderIdOptional:
+      name: orderId
+      in: query
+      required: false
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+  responses:
+    NotFound:
+      description: リソースが見つからない
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+  schemas:
+    AssetCode:
+      type: string
+      enum: [BTC, ETH]
+    BalanceAssetCode:
+      type: string
+      enum: [JPY, BTC, ETH]
+    OrderSide:
+      type: string
+      enum: [buy, sell]
+    OrderType:
+      type: string
+      enum: [limit]
+    OrderStatus:
+      type: string
+      enum:
+        - pending_submit
+        - open
+        - partially_filled
+        - filled
+        - cancel_requested
+        - cancelled
+        - expired
+        - rejected
+        - failed
+    JobType:
+      type: string
+      enum: [price_fetch, daily_trade, order_reconcile, manual]
+    JobRunStatus:
+      type: string
+      enum: [running, succeeded, failed, skipped]
+    HealthResponse:
+      type: object
+      required: [status, checkedAt]
+      properties:
+        status:
+          type: string
+          example: ok
+        checkedAt:
+          type: string
+          format: date-time
+    SummaryAsset:
+      type: object
+      required: [assetCode, availableAmount, lockedAmount]
+      properties:
+        assetCode:
+          $ref: "#/components/schemas/BalanceAssetCode"
+        availableAmount:
+          type: string
+          description: decimal string
+          example: "0.25000000"
+        lockedAmount:
+          type: string
+          description: decimal string
+          example: "0.01000000"
+    SummaryOrderStats:
+      type: object
+      required: [openCount, unresolvedPreviousDayCount]
+      properties:
+        openCount:
+          type: integer
+          format: int32
+        unresolvedPreviousDayCount:
+          type: integer
+          format: int32
+    SummaryWeeklyLimit:
+      type: object
+      required: [assetCode, limitUnits, consumedUnits, remainingUnits, windowStartedAt]
+      properties:
+        assetCode:
+          $ref: "#/components/schemas/AssetCode"
+        limitUnits:
+          type: string
+          description: decimal string
+        consumedUnits:
+          type: string
+          description: decimal string
+        remainingUnits:
+          type: string
+          description: decimal string
+        windowStartedAt:
+          type: string
+          format: date-time
+    SystemSummaryResponse:
+      type: object
+      required:
+        - serverTime
+        - latestJobRuns
+        - balances
+        - orderStats
+        - weeklyLimits
+      properties:
+        serverTime:
+          type: string
+          format: date-time
+        latestJobRuns:
+          type: array
+          items:
+            $ref: "#/components/schemas/JobRunSummary"
+        balances:
+          type: array
+          items:
+            $ref: "#/components/schemas/SummaryAsset"
+        orderStats:
+          $ref: "#/components/schemas/SummaryOrderStats"
+        weeklyLimits:
+          type: array
+          items:
+            $ref: "#/components/schemas/SummaryWeeklyLimit"
+    PriceSnapshot:
+      type: object
+      required: [id, assetCode, priceJpy, capturedAt, source]
+      properties:
+        id:
+          type: integer
+          format: int64
+        assetCode:
+          $ref: "#/components/schemas/AssetCode"
+        priceJpy:
+          type: string
+          description: decimal string
+          example: "10345678.12000000"
+        capturedAt:
+          type: string
+          format: date-time
+        source:
+          type: string
+    LatestPricesResponse:
+      type: object
+      required: [prices]
+      properties:
+        prices:
+          type: array
+          items:
+            $ref: "#/components/schemas/PriceSnapshot"
+    PriceHistoryResponse:
+      type: object
+      required: [prices]
+      properties:
+        prices:
+          type: array
+          items:
+            $ref: "#/components/schemas/PriceSnapshot"
+    Order:
+      type: object
+      required:
+        - id
+        - exchangeOrderId
+        - clientOrderId
+        - assetCode
+        - side
+        - orderType
+        - status
+        - priceJpy
+        - orderedUnits
+        - filledUnits
+        - remainingUnits
+        - feeJpy
+        - isFeeFree
+        - placedAt
+      properties:
+        id:
+          type: integer
+          format: int64
+        exchangeOrderId:
+          type: string
+        clientOrderId:
+          type: string
+          format: uuid
+        assetCode:
+          $ref: "#/components/schemas/AssetCode"
+        side:
+          $ref: "#/components/schemas/OrderSide"
+        orderType:
+          $ref: "#/components/schemas/OrderType"
+        status:
+          $ref: "#/components/schemas/OrderStatus"
+        priceJpy:
+          type: string
+          description: decimal string
+        orderedUnits:
+          type: string
+          description: decimal string
+        filledUnits:
+          type: string
+          description: decimal string
+        remainingUnits:
+          type: string
+          description: decimal string
+        feeJpy:
+          type: string
+          description: decimal string
+        isFeeFree:
+          type: boolean
+        placedAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+        cancelledAt:
+          type: string
+          format: date-time
+        lastStatusCheckedAt:
+          type: string
+          format: date-time
+    OrderEvent:
+      type: object
+      required: [id, eventType, eventAt]
+      properties:
+        id:
+          type: integer
+          format: int64
+        eventType:
+          type: string
+        fromStatus:
+          $ref: "#/components/schemas/OrderStatus"
+        toStatus:
+          $ref: "#/components/schemas/OrderStatus"
+        eventAt:
+          type: string
+          format: date-time
+        payload:
+          type: object
+          additionalProperties: true
+    OrderListResponse:
+      type: object
+      required: [orders]
+      properties:
+        orders:
+          type: array
+          items:
+            $ref: "#/components/schemas/Order"
+    OrderDetailResponse:
+      type: object
+      required: [order, events]
+      properties:
+        order:
+          $ref: "#/components/schemas/Order"
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderEvent"
+    TradeExecution:
+      type: object
+      required:
+        - id
+        - orderId
+        - exchangeExecutionId
+        - executedAt
+        - priceJpy
+        - executedUnits
+        - feeJpy
+        - isPartialFill
+      properties:
+        id:
+          type: integer
+          format: int64
+        orderId:
+          type: integer
+          format: int64
+        exchangeExecutionId:
+          type: string
+        executedAt:
+          type: string
+          format: date-time
+        priceJpy:
+          type: string
+          description: decimal string
+        executedUnits:
+          type: string
+          description: decimal string
+        feeJpy:
+          type: string
+          description: decimal string
+        isPartialFill:
+          type: boolean
+    ExecutionListResponse:
+      type: object
+      required: [executions]
+      properties:
+        executions:
+          type: array
+          items:
+            $ref: "#/components/schemas/TradeExecution"
+    JobRunSummary:
+      type: object
+      required:
+        - id
+        - jobType
+        - status
+        - scheduledFor
+        - startedAt
+      properties:
+        id:
+          type: integer
+          format: int64
+        jobType:
+          $ref: "#/components/schemas/JobType"
+        status:
+          $ref: "#/components/schemas/JobRunStatus"
+        scheduledFor:
+          type: string
+          format: date-time
+        startedAt:
+          type: string
+          format: date-time
+        finishedAt:
+          type: string
+          format: date-time
+        errorCode:
+          type: string
+        errorMessage:
+          type: string
+    JobRunListResponse:
+      type: object
+      required: [jobRuns]
+      properties:
+        jobRuns:
+          type: array
+          items:
+            $ref: "#/components/schemas/JobRunSummary"
+    TriggerJobRequest:
+      type: object
+      properties:
+        requestedBy:
+          type: string
+          description: 実行主体の識別子
+        reason:
+          type: string
+          description: 手動実行理由
+    TriggerJobResponse:
+      type: object
+      required: [jobRunId, status]
+      properties:
+        jobRunId:
+          type: integer
+          format: int64
+        status:
+          type: string
+          example: accepted
+    ErrorResponse:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
