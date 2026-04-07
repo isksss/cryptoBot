@@ -106,6 +106,60 @@ func (q *Queries) GetOrder(ctx context.Context, id int64) (GetOrderRow, error) {
 	return i, err
 }
 
+const insertBalanceSnapshot = `-- name: InsertBalanceSnapshot :one
+INSERT INTO balance_snapshots (
+    job_run_id,
+    asset_code,
+    available_amount,
+    locked_amount,
+    captured_at
+) VALUES (
+    $1,
+    $2,
+    $3,
+    $4,
+    $5
+)
+RETURNING id, job_run_id, asset_code, available_amount::text AS available_amount, locked_amount::text AS locked_amount, captured_at
+`
+
+type InsertBalanceSnapshotParams struct {
+	JobRunID        *int64             `json:"job_run_id"`
+	AssetCode       string             `json:"asset_code"`
+	AvailableAmount pgtype.Numeric     `json:"available_amount"`
+	LockedAmount    pgtype.Numeric     `json:"locked_amount"`
+	CapturedAt      pgtype.Timestamptz `json:"captured_at"`
+}
+
+type InsertBalanceSnapshotRow struct {
+	ID              int64              `json:"id"`
+	JobRunID        *int64             `json:"job_run_id"`
+	AssetCode       string             `json:"asset_code"`
+	AvailableAmount string             `json:"available_amount"`
+	LockedAmount    string             `json:"locked_amount"`
+	CapturedAt      pgtype.Timestamptz `json:"captured_at"`
+}
+
+func (q *Queries) InsertBalanceSnapshot(ctx context.Context, arg InsertBalanceSnapshotParams) (InsertBalanceSnapshotRow, error) {
+	row := q.db.QueryRow(ctx, insertBalanceSnapshot,
+		arg.JobRunID,
+		arg.AssetCode,
+		arg.AvailableAmount,
+		arg.LockedAmount,
+		arg.CapturedAt,
+	)
+	var i InsertBalanceSnapshotRow
+	err := row.Scan(
+		&i.ID,
+		&i.JobRunID,
+		&i.AssetCode,
+		&i.AvailableAmount,
+		&i.LockedAmount,
+		&i.CapturedAt,
+	)
+	return i, err
+}
+
 const insertJobRun = `-- name: InsertJobRun :one
 INSERT INTO job_runs (
     job_type,
@@ -160,6 +214,54 @@ func (q *Queries) InsertJobRun(ctx context.Context, arg InsertJobRunParams) (Ins
 		&i.FinishedAt,
 		&i.ErrorCode,
 		&i.ErrorMessage,
+	)
+	return i, err
+}
+
+const insertPriceSnapshot = `-- name: InsertPriceSnapshot :one
+INSERT INTO price_snapshots (
+    asset_code,
+    price_jpy,
+    captured_at,
+    source
+) VALUES (
+    $1,
+    $2,
+    $3,
+    $4
+)
+RETURNING id, asset_code, price_jpy::text AS price_jpy, captured_at, source
+`
+
+type InsertPriceSnapshotParams struct {
+	AssetCode  string             `json:"asset_code"`
+	PriceJpy   pgtype.Numeric     `json:"price_jpy"`
+	CapturedAt pgtype.Timestamptz `json:"captured_at"`
+	Source     string             `json:"source"`
+}
+
+type InsertPriceSnapshotRow struct {
+	ID         int64              `json:"id"`
+	AssetCode  string             `json:"asset_code"`
+	PriceJpy   string             `json:"price_jpy"`
+	CapturedAt pgtype.Timestamptz `json:"captured_at"`
+	Source     string             `json:"source"`
+}
+
+func (q *Queries) InsertPriceSnapshot(ctx context.Context, arg InsertPriceSnapshotParams) (InsertPriceSnapshotRow, error) {
+	row := q.db.QueryRow(ctx, insertPriceSnapshot,
+		arg.AssetCode,
+		arg.PriceJpy,
+		arg.CapturedAt,
+		arg.Source,
+	)
+	var i InsertPriceSnapshotRow
+	err := row.Scan(
+		&i.ID,
+		&i.AssetCode,
+		&i.PriceJpy,
+		&i.CapturedAt,
+		&i.Source,
 	)
 	return i, err
 }
@@ -686,4 +788,49 @@ func (q *Queries) ListWeeklyConsumedBuyUnits(ctx context.Context, windowStartedA
 		return nil, err
 	}
 	return items, nil
+}
+
+const markJobRunFailed = `-- name: MarkJobRunFailed :exec
+UPDATE job_runs
+SET status = 'failed',
+    finished_at = $1,
+    error_code = $2,
+    error_message = $3
+WHERE id = $4
+`
+
+type MarkJobRunFailedParams struct {
+	FinishedAt   pgtype.Timestamptz `json:"finished_at"`
+	ErrorCode    *string            `json:"error_code"`
+	ErrorMessage *string            `json:"error_message"`
+	ID           int64              `json:"id"`
+}
+
+func (q *Queries) MarkJobRunFailed(ctx context.Context, arg MarkJobRunFailedParams) error {
+	_, err := q.db.Exec(ctx, markJobRunFailed,
+		arg.FinishedAt,
+		arg.ErrorCode,
+		arg.ErrorMessage,
+		arg.ID,
+	)
+	return err
+}
+
+const markJobRunSucceeded = `-- name: MarkJobRunSucceeded :exec
+UPDATE job_runs
+SET status = 'succeeded',
+    finished_at = $1,
+    error_code = NULL,
+    error_message = NULL
+WHERE id = $2
+`
+
+type MarkJobRunSucceededParams struct {
+	FinishedAt pgtype.Timestamptz `json:"finished_at"`
+	ID         int64              `json:"id"`
+}
+
+func (q *Queries) MarkJobRunSucceeded(ctx context.Context, arg MarkJobRunSucceededParams) error {
+	_, err := q.db.Exec(ctx, markJobRunSucceeded, arg.FinishedAt, arg.ID)
+	return err
 }

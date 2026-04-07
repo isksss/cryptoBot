@@ -186,3 +186,49 @@ INSERT INTO job_runs (
     sqlc.arg('metadata')
 )
 RETURNING id, job_type, status, scheduled_for, started_at, finished_at, error_code, error_message;
+
+-- name: MarkJobRunSucceeded :exec
+UPDATE job_runs
+SET status = 'succeeded',
+    finished_at = sqlc.arg('finished_at'),
+    error_code = NULL,
+    error_message = NULL
+WHERE id = sqlc.arg('id');
+
+-- name: MarkJobRunFailed :exec
+UPDATE job_runs
+SET status = 'failed',
+    finished_at = sqlc.arg('finished_at'),
+    error_code = sqlc.arg('error_code'),
+    error_message = sqlc.arg('error_message')
+WHERE id = sqlc.arg('id');
+
+-- name: InsertPriceSnapshot :one
+INSERT INTO price_snapshots (
+    asset_code,
+    price_jpy,
+    captured_at,
+    source
+) VALUES (
+    sqlc.arg('asset_code'),
+    sqlc.arg('price_jpy'),
+    sqlc.arg('captured_at'),
+    sqlc.arg('source')
+)
+RETURNING id, asset_code, price_jpy::text AS price_jpy, captured_at, source;
+
+-- name: InsertBalanceSnapshot :one
+INSERT INTO balance_snapshots (
+    job_run_id,
+    asset_code,
+    available_amount,
+    locked_amount,
+    captured_at
+) VALUES (
+    sqlc.narg('job_run_id'),
+    sqlc.arg('asset_code'),
+    sqlc.arg('available_amount'),
+    sqlc.arg('locked_amount'),
+    sqlc.arg('captured_at')
+)
+RETURNING id, job_run_id, asset_code, available_amount::text AS available_amount, locked_amount::text AS locked_amount, captured_at;

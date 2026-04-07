@@ -14,7 +14,9 @@ type Querier interface {
 	CountOpenOrders(ctx context.Context) (int64, error)
 	CountUnresolvedPreviousDayOrders(ctx context.Context) (int64, error)
 	GetOrder(ctx context.Context, id int64) (GetOrderRow, error)
+	InsertBalanceSnapshot(ctx context.Context, arg InsertBalanceSnapshotParams) (InsertBalanceSnapshotRow, error)
 	InsertJobRun(ctx context.Context, arg InsertJobRunParams) (InsertJobRunRow, error)
+	InsertPriceSnapshot(ctx context.Context, arg InsertPriceSnapshotParams) (InsertPriceSnapshotRow, error)
 	ListExecutions(ctx context.Context, arg ListExecutionsParams) ([]ListExecutionsRow, error)
 	ListJobRuns(ctx context.Context, arg ListJobRunsParams) ([]ListJobRunsRow, error)
 	ListLatestBalances(ctx context.Context) ([]ListLatestBalancesRow, error)
@@ -24,6 +26,8 @@ type Querier interface {
 	ListOrders(ctx context.Context, arg ListOrdersParams) ([]ListOrdersRow, error)
 	ListPriceHistory(ctx context.Context, arg ListPriceHistoryParams) ([]ListPriceHistoryRow, error)
 	ListWeeklyConsumedBuyUnits(ctx context.Context, windowStartedAt pgtype.Timestamptz) ([]ListWeeklyConsumedBuyUnitsRow, error)
+	MarkJobRunFailed(ctx context.Context, arg MarkJobRunFailedParams) error
+	MarkJobRunSucceeded(ctx context.Context, arg MarkJobRunSucceededParams) error
 }
 
 var _ Querier = (*Queries)(nil)

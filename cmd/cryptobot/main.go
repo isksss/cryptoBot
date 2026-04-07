@@ -10,6 +10,8 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -17,17 +19,26 @@ import (
 
 	appapi "github.com/isksss/cryptoBot/internal/api"
 	"github.com/isksss/cryptoBot/internal/bot"
+	"github.com/isksss/cryptoBot/internal/gmo"
 	"github.com/isksss/cryptoBot/internal/store"
+	appsync "github.com/isksss/cryptoBot/internal/sync"
 )
 
 type config struct {
 	DatabaseURL      string
 	HTTPAddr         string
 	WeeklyLimitUnits string
+	APIKey           string
+	APISecretKey     string
 	LogLevel         slog.Level
 }
 
 func main() {
+	if err := loadDotEnv(".env"); err != nil {
+		slog.Error("load .env", slog.Any("error", err))
+		os.Exit(1)
+	}
+
 	cfg, err := loadConfig()
 	if err != nil {
 		slog.Error("load config", slog.Any("error", err))
@@ -48,7 +59,9 @@ func main() {
 	defer dbpool.Close()
 
 	queries := store.New(dbpool)
-	apiHandler := appapi.NewHandler(queries, dbpool, cfg.WeeklyLimitUnits)
+	gmoClient := gmo.NewClient(cfg.APIKey, cfg.APISecretKey)
+	syncService := appsync.NewService(logger, queries, gmoClient)
+	apiHandler := appapi.NewHandler(queries, dbpool, syncService, cfg.WeeklyLimitUnits)
 	serverInterface := appapi.NewStrictHandlerWithOptions(apiHandler, nil, appapi.StrictHTTPServerOptions{
 		RequestErrorHandlerFunc:  jsonRequestError,
 		ResponseErrorHandlerFunc: jsonResponseError,
@@ -64,7 +77,7 @@ func main() {
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
-	botService := bot.NewService(logger)
+	botService := bot.NewService(logger, syncService)
 	errCh := make(chan error, 2)
 
 	go func() {
@@ -102,11 +115,19 @@ func loadConfig() (config, error) {
 		DatabaseURL:      os.Getenv("CRYPTOBOT_DATABASE_URL"),
 		HTTPAddr:         envOrDefault("CRYPTOBOT_HTTP_ADDR", ":8080"),
 		WeeklyLimitUnits: envOrDefault("CRYPTOBOT_WEEKLY_LIMIT_UNITS", "0"),
+		APIKey:           os.Getenv("CRYPTOBOT_API_KEY"),
+		APISecretKey:     os.Getenv("CRYPTOBOT_API_SECRET_KEY"),
 		LogLevel:         parseLogLevel(envOrDefault("CRYPTOBOT_LOG_LEVEL", "info")),
 	}
 
 	if cfg.DatabaseURL == "" {
 		return config{}, errors.New("CRYPTOBOT_DATABASE_URL is required")
+	}
+	if cfg.APIKey == "" {
+		return config{}, errors.New("CRYPTOBOT_API_KEY is required")
+	}
+	if cfg.APISecretKey == "" {
+		return config{}, errors.New("CRYPTOBOT_API_SECRET_KEY is required")
 	}
 
 	return cfg, nil
@@ -126,6 +147,45 @@ func parseLogLevel(value string) slog.Level {
 		return slog.LevelInfo
 	}
 	return level
+}
+
+func loadDotEnv(path string) error {
+	body, err := os.ReadFile(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return err
+	}
+
+	lines := strings.Split(string(body), "\n")
+	for i, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		key, value, found := strings.Cut(line, "=")
+		if !found {
+			return errors.New("invalid .env line " + strconv.Itoa(i+1))
+		}
+
+		key = strings.TrimSpace(key)
+		value = strings.TrimSpace(value)
+		value = strings.Trim(value, `"'`)
+		if key == "" {
+			return errors.New("empty key in .env line " + strconv.Itoa(i+1))
+		}
+
+		if _, exists := os.LookupEnv(key); exists {
+			continue
+		}
+		if err := os.Setenv(key, value); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func jsonRequestError(w http.ResponseWriter, _ *http.Request, err error) {

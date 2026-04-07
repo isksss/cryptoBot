@@ -20,14 +20,19 @@ type pinger interface {
 	Ping(context.Context) error
 }
 
+type priceSyncer interface {
+	SyncPriceAndBalances(ctx context.Context, requestedBy string, reason string) (int64, error)
+}
+
 type Server struct {
 	queries          store.Querier
 	ping             pinger
+	priceSyncer      priceSyncer
 	weeklyLimitUnits string
 	now              func() time.Time
 }
 
-func NewHandler(queries store.Querier, ping pinger, weeklyLimitUnits string) *Server {
+func NewHandler(queries store.Querier, ping pinger, priceSyncer priceSyncer, weeklyLimitUnits string) *Server {
 	if weeklyLimitUnits == "" {
 		weeklyLimitUnits = "0"
 	}
@@ -35,6 +40,7 @@ func NewHandler(queries store.Querier, ping pinger, weeklyLimitUnits string) *Se
 	return &Server{
 		queries:          queries,
 		ping:             ping,
+		priceSyncer:      priceSyncer,
 		weeklyLimitUnits: weeklyLimitUnits,
 		now:              time.Now,
 	}
@@ -337,13 +343,17 @@ func (h *Server) GetSystemSummary(ctx context.Context, _ GetSystemSummaryRequest
 }
 
 func (h *Server) TriggerPriceFetchJob(ctx context.Context, request TriggerPriceFetchJobRequestObject) (TriggerPriceFetchJobResponseObject, error) {
-	jobRun, err := h.insertManualJobRun(ctx, PriceFetch, request.Body)
+	if h.priceSyncer == nil {
+		return nil, errors.New("price sync service is not configured")
+	}
+
+	jobRunID, err := h.priceSyncer.SyncPriceAndBalances(ctx, requestedBy(request.Body), requestedReason(request.Body))
 	if err != nil {
 		return nil, err
 	}
 
 	return TriggerPriceFetchJob202JSONResponse{
-		JobRunId: jobRun.ID,
+		JobRunId: jobRunID,
 		Status:   "accepted",
 	}, nil
 }
@@ -586,4 +596,18 @@ func subtractDecimalStrings(limit string, consumed string) string {
 	}
 
 	return result.FloatString(8)
+}
+
+func requestedBy(body *TriggerJobRequest) string {
+	if body == nil || body.RequestedBy == nil || *body.RequestedBy == "" {
+		return "api"
+	}
+	return *body.RequestedBy
+}
+
+func requestedReason(body *TriggerJobRequest) string {
+	if body == nil || body.Reason == nil {
+		return ""
+	}
+	return *body.Reason
 }
