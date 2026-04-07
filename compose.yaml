@@ -1,4 +1,22 @@
 services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cryptobot-app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      TZ: Asia/Tokyo
+      CRYPTOBOT_DATABASE_URL: postgres://cryptobot:cryptobot@postgres:5432/cryptobot?sslmode=disable
+      CRYPTOBOT_HTTP_ADDR: :8080
+    ports:
+      - "8080:8080"
+
   postgres:
     image: postgres:17-alpine
     container_name: cryptobot-postgres
