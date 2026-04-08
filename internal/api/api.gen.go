@@ -24,6 +24,10 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
+const (
+	BasicAuthScopes = "basicAuth.Scopes"
+)
+
 // Defines values for AssetCode.
 const (
 	AssetCodeBTC AssetCode = "BTC"
@@ -459,6 +463,12 @@ func (siw *ServerInterfaceWrapper) GetLatestBalances(w http.ResponseWriter, r *h
 
 	var err error
 
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BasicAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
 	// Parameter object where we will unmarshal all parameters from the context
 	var params GetLatestBalancesParams
 
@@ -485,6 +495,12 @@ func (siw *ServerInterfaceWrapper) GetLatestBalances(w http.ResponseWriter, r *h
 func (siw *ServerInterfaceWrapper) ListExecutions(w http.ResponseWriter, r *http.Request) {
 
 	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BasicAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params ListExecutionsParams
@@ -529,6 +545,12 @@ func (siw *ServerInterfaceWrapper) ListJobRuns(w http.ResponseWriter, r *http.Re
 
 	var err error
 
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BasicAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
 	// Parameter object where we will unmarshal all parameters from the context
 	var params ListJobRunsParams
 
@@ -570,6 +592,12 @@ func (siw *ServerInterfaceWrapper) ListJobRuns(w http.ResponseWriter, r *http.Re
 // TriggerDailyTradeJob operation middleware
 func (siw *ServerInterfaceWrapper) TriggerDailyTradeJob(w http.ResponseWriter, r *http.Request) {
 
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BasicAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.TriggerDailyTradeJob(w, r)
 	}))
@@ -584,6 +612,12 @@ func (siw *ServerInterfaceWrapper) TriggerDailyTradeJob(w http.ResponseWriter, r
 // TriggerOrderReconcileJob operation middleware
 func (siw *ServerInterfaceWrapper) TriggerOrderReconcileJob(w http.ResponseWriter, r *http.Request) {
 
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BasicAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.TriggerOrderReconcileJob(w, r)
 	}))
@@ -597,6 +631,12 @@ func (siw *ServerInterfaceWrapper) TriggerOrderReconcileJob(w http.ResponseWrite
 
 // TriggerPriceFetchJob operation middleware
 func (siw *ServerInterfaceWrapper) TriggerPriceFetchJob(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BasicAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.TriggerPriceFetchJob(w, r)
@@ -613,6 +653,12 @@ func (siw *ServerInterfaceWrapper) TriggerPriceFetchJob(w http.ResponseWriter, r
 func (siw *ServerInterfaceWrapper) ListOrders(w http.ResponseWriter, r *http.Request) {
 
 	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BasicAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params ListOrdersParams
@@ -663,6 +709,12 @@ func (siw *ServerInterfaceWrapper) ListOrders(w http.ResponseWriter, r *http.Req
 // CreateOrder operation middleware
 func (siw *ServerInterfaceWrapper) CreateOrder(w http.ResponseWriter, r *http.Request) {
 
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BasicAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.CreateOrder(w, r)
 	}))
@@ -687,6 +739,12 @@ func (siw *ServerInterfaceWrapper) GetOrder(w http.ResponseWriter, r *http.Reque
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "orderId", Err: err})
 		return
 	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BasicAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetOrder(w, r, orderId)
@@ -713,6 +771,12 @@ func (siw *ServerInterfaceWrapper) CancelOrder(w http.ResponseWriter, r *http.Re
 		return
 	}
 
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BasicAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.CancelOrder(w, r, orderId)
 	}))
@@ -728,6 +792,12 @@ func (siw *ServerInterfaceWrapper) CancelOrder(w http.ResponseWriter, r *http.Re
 func (siw *ServerInterfaceWrapper) ListPriceHistory(w http.ResponseWriter, r *http.Request) {
 
 	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BasicAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params ListPriceHistoryParams
@@ -787,6 +857,12 @@ func (siw *ServerInterfaceWrapper) GetLatestPrices(w http.ResponseWriter, r *htt
 
 	var err error
 
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BasicAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
 	// Parameter object where we will unmarshal all parameters from the context
 	var params GetLatestPricesParams
 
@@ -811,6 +887,12 @@ func (siw *ServerInterfaceWrapper) GetLatestPrices(w http.ResponseWriter, r *htt
 
 // GetSystemSummary operation middleware
 func (siw *ServerInterfaceWrapper) GetSystemSummary(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BasicAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetSystemSummary(w, r)
@@ -977,6 +1059,15 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 
 type NotFoundJSONResponse ErrorResponse
 
+type UnauthorizedResponseHeaders struct {
+	WWWAuthenticate string
+}
+type UnauthorizedTextResponse struct {
+	Body string
+
+	Headers UnauthorizedResponseHeaders
+}
+
 type GetLatestBalancesRequestObject struct {
 	Params GetLatestBalancesParams
 }
@@ -992,6 +1083,17 @@ func (response GetLatestBalances200JSONResponse) VisitGetLatestBalancesResponse(
 	w.WriteHeader(200)
 
 	return json.NewEncoder(w).Encode(response)
+}
+
+type GetLatestBalances401TextResponse struct{ UnauthorizedTextResponse }
+
+func (response GetLatestBalances401TextResponse) VisitGetLatestBalancesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "text/plain")
+	w.Header().Set("WWW-Authenticate", fmt.Sprint(response.Headers.WWWAuthenticate))
+	w.WriteHeader(401)
+
+	_, err := w.Write([]byte(response.Body))
+	return err
 }
 
 type ListExecutionsRequestObject struct {
@@ -1011,6 +1113,17 @@ func (response ListExecutions200JSONResponse) VisitListExecutionsResponse(w http
 	return json.NewEncoder(w).Encode(response)
 }
 
+type ListExecutions401TextResponse struct{ UnauthorizedTextResponse }
+
+func (response ListExecutions401TextResponse) VisitListExecutionsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "text/plain")
+	w.Header().Set("WWW-Authenticate", fmt.Sprint(response.Headers.WWWAuthenticate))
+	w.WriteHeader(401)
+
+	_, err := w.Write([]byte(response.Body))
+	return err
+}
+
 type ListJobRunsRequestObject struct {
 	Params ListJobRunsParams
 }
@@ -1026,6 +1139,17 @@ func (response ListJobRuns200JSONResponse) VisitListJobRunsResponse(w http.Respo
 	w.WriteHeader(200)
 
 	return json.NewEncoder(w).Encode(response)
+}
+
+type ListJobRuns401TextResponse struct{ UnauthorizedTextResponse }
+
+func (response ListJobRuns401TextResponse) VisitListJobRunsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "text/plain")
+	w.Header().Set("WWW-Authenticate", fmt.Sprint(response.Headers.WWWAuthenticate))
+	w.WriteHeader(401)
+
+	_, err := w.Write([]byte(response.Body))
+	return err
 }
 
 type TriggerDailyTradeJobRequestObject struct {
@@ -1045,6 +1169,17 @@ func (response TriggerDailyTradeJob202JSONResponse) VisitTriggerDailyTradeJobRes
 	return json.NewEncoder(w).Encode(response)
 }
 
+type TriggerDailyTradeJob401TextResponse struct{ UnauthorizedTextResponse }
+
+func (response TriggerDailyTradeJob401TextResponse) VisitTriggerDailyTradeJobResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "text/plain")
+	w.Header().Set("WWW-Authenticate", fmt.Sprint(response.Headers.WWWAuthenticate))
+	w.WriteHeader(401)
+
+	_, err := w.Write([]byte(response.Body))
+	return err
+}
+
 type TriggerOrderReconcileJobRequestObject struct {
 	Body *TriggerOrderReconcileJobJSONRequestBody
 }
@@ -1060,6 +1195,17 @@ func (response TriggerOrderReconcileJob202JSONResponse) VisitTriggerOrderReconci
 	w.WriteHeader(202)
 
 	return json.NewEncoder(w).Encode(response)
+}
+
+type TriggerOrderReconcileJob401TextResponse struct{ UnauthorizedTextResponse }
+
+func (response TriggerOrderReconcileJob401TextResponse) VisitTriggerOrderReconcileJobResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "text/plain")
+	w.Header().Set("WWW-Authenticate", fmt.Sprint(response.Headers.WWWAuthenticate))
+	w.WriteHeader(401)
+
+	_, err := w.Write([]byte(response.Body))
+	return err
 }
 
 type TriggerPriceFetchJobRequestObject struct {
@@ -1079,6 +1225,17 @@ func (response TriggerPriceFetchJob202JSONResponse) VisitTriggerPriceFetchJobRes
 	return json.NewEncoder(w).Encode(response)
 }
 
+type TriggerPriceFetchJob401TextResponse struct{ UnauthorizedTextResponse }
+
+func (response TriggerPriceFetchJob401TextResponse) VisitTriggerPriceFetchJobResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "text/plain")
+	w.Header().Set("WWW-Authenticate", fmt.Sprint(response.Headers.WWWAuthenticate))
+	w.WriteHeader(401)
+
+	_, err := w.Write([]byte(response.Body))
+	return err
+}
+
 type ListOrdersRequestObject struct {
 	Params ListOrdersParams
 }
@@ -1094,6 +1251,17 @@ func (response ListOrders200JSONResponse) VisitListOrdersResponse(w http.Respons
 	w.WriteHeader(200)
 
 	return json.NewEncoder(w).Encode(response)
+}
+
+type ListOrders401TextResponse struct{ UnauthorizedTextResponse }
+
+func (response ListOrders401TextResponse) VisitListOrdersResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "text/plain")
+	w.Header().Set("WWW-Authenticate", fmt.Sprint(response.Headers.WWWAuthenticate))
+	w.WriteHeader(401)
+
+	_, err := w.Write([]byte(response.Body))
+	return err
 }
 
 type CreateOrderRequestObject struct {
@@ -1113,6 +1281,17 @@ func (response CreateOrder201JSONResponse) VisitCreateOrderResponse(w http.Respo
 	return json.NewEncoder(w).Encode(response)
 }
 
+type CreateOrder401TextResponse struct{ UnauthorizedTextResponse }
+
+func (response CreateOrder401TextResponse) VisitCreateOrderResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "text/plain")
+	w.Header().Set("WWW-Authenticate", fmt.Sprint(response.Headers.WWWAuthenticate))
+	w.WriteHeader(401)
+
+	_, err := w.Write([]byte(response.Body))
+	return err
+}
+
 type GetOrderRequestObject struct {
 	OrderId OrderId `json:"orderId"`
 }
@@ -1128,6 +1307,17 @@ func (response GetOrder200JSONResponse) VisitGetOrderResponse(w http.ResponseWri
 	w.WriteHeader(200)
 
 	return json.NewEncoder(w).Encode(response)
+}
+
+type GetOrder401TextResponse struct{ UnauthorizedTextResponse }
+
+func (response GetOrder401TextResponse) VisitGetOrderResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "text/plain")
+	w.Header().Set("WWW-Authenticate", fmt.Sprint(response.Headers.WWWAuthenticate))
+	w.WriteHeader(401)
+
+	_, err := w.Write([]byte(response.Body))
+	return err
 }
 
 type GetOrder404JSONResponse struct{ NotFoundJSONResponse }
@@ -1156,6 +1346,17 @@ func (response CancelOrder200JSONResponse) VisitCancelOrderResponse(w http.Respo
 	return json.NewEncoder(w).Encode(response)
 }
 
+type CancelOrder401TextResponse struct{ UnauthorizedTextResponse }
+
+func (response CancelOrder401TextResponse) VisitCancelOrderResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "text/plain")
+	w.Header().Set("WWW-Authenticate", fmt.Sprint(response.Headers.WWWAuthenticate))
+	w.WriteHeader(401)
+
+	_, err := w.Write([]byte(response.Body))
+	return err
+}
+
 type CancelOrder404JSONResponse struct{ NotFoundJSONResponse }
 
 func (response CancelOrder404JSONResponse) VisitCancelOrderResponse(w http.ResponseWriter) error {
@@ -1182,6 +1383,17 @@ func (response ListPriceHistory200JSONResponse) VisitListPriceHistoryResponse(w 
 	return json.NewEncoder(w).Encode(response)
 }
 
+type ListPriceHistory401TextResponse struct{ UnauthorizedTextResponse }
+
+func (response ListPriceHistory401TextResponse) VisitListPriceHistoryResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "text/plain")
+	w.Header().Set("WWW-Authenticate", fmt.Sprint(response.Headers.WWWAuthenticate))
+	w.WriteHeader(401)
+
+	_, err := w.Write([]byte(response.Body))
+	return err
+}
+
 type GetLatestPricesRequestObject struct {
 	Params GetLatestPricesParams
 }
@@ -1199,6 +1411,17 @@ func (response GetLatestPrices200JSONResponse) VisitGetLatestPricesResponse(w ht
 	return json.NewEncoder(w).Encode(response)
 }
 
+type GetLatestPrices401TextResponse struct{ UnauthorizedTextResponse }
+
+func (response GetLatestPrices401TextResponse) VisitGetLatestPricesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "text/plain")
+	w.Header().Set("WWW-Authenticate", fmt.Sprint(response.Headers.WWWAuthenticate))
+	w.WriteHeader(401)
+
+	_, err := w.Write([]byte(response.Body))
+	return err
+}
+
 type GetSystemSummaryRequestObject struct {
 }
 
@@ -1213,6 +1436,17 @@ func (response GetSystemSummary200JSONResponse) VisitGetSystemSummaryResponse(w 
 	w.WriteHeader(200)
 
 	return json.NewEncoder(w).Encode(response)
+}
+
+type GetSystemSummary401TextResponse struct{ UnauthorizedTextResponse }
+
+func (response GetSystemSummary401TextResponse) VisitGetSystemSummaryResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "text/plain")
+	w.Header().Set("WWW-Authenticate", fmt.Sprint(response.Headers.WWWAuthenticate))
+	w.WriteHeader(401)
+
+	_, err := w.Write([]byte(response.Body))
+	return err
 }
 
 type GetHealthRequestObject struct {
@@ -1689,52 +1923,57 @@ func (sh *strictHandler) GetHealth(w http.ResponseWriter, r *http.Request) {
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
-	"L1VHnkROhCJPZWO/fm79fwEAAP//wkcRfSE5AAA=",
+	"H4sIAAAAAAAC/+xbb28TRxr/Ktbcvaqc2AHaQ5H6IgnkCqVNRIJQBSiM15N4wnp3Ozub4qJIrN32aAki",
+	"pT3gelFbRIEcLekf2kJVoB9mYif9FqeZ2b/eWXvXcSRelBco3p15nmee3/Nv5pm9BDSzbpkGMqgNxi8B",
+	"CxJYRxQR8WvCthGdMquI/8AGGAfvOog0QBEYsI7AOIDBgCKwtRqqQz7y7wQtgnHwt1JIuyTf2qWQ5Opq",
+	"MWRwEr3rYIKqWRiRYCwlDhqM8STUoaGh4OGMRbFpQH14C+3mINhOE7M+QdOYLBKzHqO/aJI6pGAcVCFF",
+	"IxTXOXvasPhgmxJsLAmqx83KHIXUsdMI2/JtVtGPm5WTjuGR9BjMC65q8sve6xz0xXhO+gSu41SF6OJl",
+	"lGwVLUJHp2B8rFwugjq8iOtOHYy/Kn5hQ/4aC5SEDYqWEBGcZkgVkWOhhVmQ1kJWpve2l3kFcGCDvnYI",
+	"ZOXYz7ZC1ntkNYfTPdXGOWw3pBbSHqaBRSlyDvNmulNQM79LrHIUbcs0bCREftuk06ZjCOw106DIEOyg",
+	"ZelYgxyd0rJtGvxZtgUcJcQkJz0WkmEV2RrBAmowDljrIWs+Z61nrPkbc9d2719l7jfMvcqaHzP3IXM/",
+	"AKtFcMqADq2ZBL+PukWj6CItWTrEXUKhi7Bu6SIiObSGDOrJXwisVqmNuHCT0MZaYffhtd3NZ8xda//x",
+	"4e59l112mfuCuV8x93v5qtP6sP31j8xd2356rfPoLiiCGoJVLzWcPn16ZCIUAUnnTOXSclnrLmt9x1qP",
+	"WfNpDNFwSXIGQVCvv34WaKRhUbNi0rOgWNBqkNiIvn4WnJqfHjl8FqjWyVfqIZTIXsjgznMGTM5PgSI4",
+	"Ov8GOJegkEwL0ZnHZ98BxT7zp/hsXZh3YB08qxLTQoRiaY1mGIgSbt7t2kXftXJ6VBjEzkTjixwQSm5W",
+	"lpFGheQEQYo8yd91kE2TgsOoWjLm2iKwCNbQcauRtJAq0nAd6gVPfwp9EikKqk6K6Yn3Nu4vTCSYFQEP",
+	"GMeMaZNoKJZOwPTEHCgGWE9PvAmK3rPpGf733MybSsQdA8vKKd/SuiCKlRcyUgdq83n0Ra2nvWXSktp0",
+	"lJzjETDBU/OsJKGvOrJtuKR618Vak9rwxytluIg0hyv8BLZpuizIHybTF0X1vu40T2AVBeSF4UjmkBDY",
+	"SMga4aCS8w0EdVrroawa0i6gqsyBWRJcNCqE4dO80NfOgjwdslQJLAvA3lpdFmOyq9QrKp16HZJGX436",
+	"1NOlCwsS32mJYxjS2WxH0xCqimy4CLEu/rAvYMtCVaUXx4VLWhA39qk0kxZv30q16yJYxAa2a/kAxlnz",
+	"w3JYm2equWWKrDo6qk6bJJfFETqokebabUTtAHPkIvuLaJ0ZrCEqXIrB+CrybUVE14VFRDW+B6hCrDcW",
+	"KHd6UJRBb4EgzTQ0rIsgBA0H6krLOQEpsqlXN9jp7lLxRsRdtjxaHiuLf6CYzY08GxUZtq8XBUxVWpGS",
+	"z3JF9JBbKCq7lwtycwa07JrZXz6PuEq6GT9pDaME0URZpuezXk3HyKAzimLNcXBVNQNd1GrQWEKROYox",
+	"FibIziPIIhq0fFrEfNGnBitRcsQgbE8jNE1QNPxVTFNHUOROHdpU+vdU/kwnvDFLhJsJBvqz9rB0S4da",
+	"Pjn3VubWIea5a2B5cxfCe99WCB/oNvlutymqStsQ0khEj9S7MfDiVpzQVeAeUSuM4JcaW44gCrHeo2pc",
+	"8c9EMwU+QfMon5OMesW9l+BFX57U9Uje6mXksWMxwfe3ZEQhZn0uv+nkiCUWbOgmFKNhtYrl0dlsZE3y",
+	"VC6hBGrODcmkAwUUA+2lar13jSywy2lDfZOmRzRVJP8U0C91Kg53Dhvp6gKm63QvKJCQUcXG0oLtVOQZ",
+	"rGkhgzsWJBRDXW8sSLcM/BP4aXYh2LSDSOYFfuqTR6xc4mh5nipZd+Emj4RVw0Xp8Qa2qUkaL189Eyc0",
+	"tLrGog7Zp41FjoQWFrRj5YOHXn3tH4dHxw4EdW0yWZmOd/7Se7eKu/NHJEdElh4QVOk9Vi8PrvZkN6cI",
+	"4ArEOqzoaKJuOjL2ZtZTefTAq+kK0k1RJWUlm/1sqVvkLlY9FBiECVsR5ixkTPmyRi3r4AGlZTkGQbap",
+	"r6DqLEEr2HTsI7CRnUB3PAy496TcY22nEbqgN4JO1FA80zRsp76HAlTEuYFn772gfA8bVfO9ubyb/h62",
+	"F1lRt34UVV03fyV8DZuiugditq33EPbYfD/Dd87Hh3sA5hWJgYtlEDDikzyqIrKCyDyHJXMyeC+0/Nzq",
+	"iXpNv8QYka1bfcUQn5gKuoRT4d91Sqs4+JWbk2BI6p6cv8+XRv05AzvY4Lv6HNvyWVmtTWNdV2/N8/Wi",
+	"Bt/jqjJ72JdSARWDJZb646qPbQCj61VbDF5aQoTbXlqTiyDotYLjK+x8fLV99d/tra9276ztrH+08/mP",
+	"GRpWcRJy8vbT37eff8bcrd1Ht9tX7rUfrSvV1VP23ofyA/QWI31lTUMWVTaSVUf0vfuKIixpDsG0Mcej",
+	"hx+QbaxNOLSWVNH5ErRwaWWs9Mr5YuF8Sfzn4NIr5wvM/b6Q0rhunjXOT518Z3Z+ZnJmfmHiyFvH3l44",
+	"NXf05NsTbx3lEzcLidezE3Nzp2dOHjlfYM0b28//2Pl8k7n/Yc2rgprfnxbOwnmGyqhRasmeOjYWzeQC",
+	"pkTXetKkBeZu7Wzd2Vn/qDAxe0yQbd/9afenJ4WKeLlZOI0qhVPH+MLa62vbTy+z1jprfsNan7DWQ+Y+",
+	"2Nl81m5dY+4t0ZnnBsMJcXn/vPwFc28z9/7Of+/u3r/J3E1pnJ3Prm0/32DNG7t31pj7kb8UiqlANhRt",
+	"YvYYKIIVRGwpdHl0bLQswoGFDGhhMA4OjpZHD4r9Hq0J0Hxg/GhdkmGcv1qSpTU3ROiHWfBPRONn43Lz",
+	"GNwuO6NOMuGQUuodrdVzXfc7DpTLQ7vakXKgr7hG0dm43Ln5Q2fr6p/f3t5+enn3/gOuwkPlsTQWgcyl",
+	"2M0P4SV+6ylGlTVvtK/fbL+4xVGES3b8TJ/P81GJ9ziVgJzANj0aDsuLRrS87Tu4++ZThileIbGf0Kr7",
+	"xQpkd37+oL31RfvHe51HPw8D0yg9FabR/nEU1WWzMkKcPpiGhVQ+QMOOYJahwUneywCkoj+tuoPVfMpa",
+	"D1jrpsy7w4NTSViF67JZSUG0JFqOI7LlyNO4aSvg9VL+ET5WFLvHzQoIioxJs9oYmkqTldFq8h7dgfKB",
+	"fWGYjuHuL0941XX91vbvt4cSXW/d63x3RybiAEbWvCETqOSWDUBRvY6EXeJ+IHqXdLzhfwG5VyAfb3Zu",
+	"/qu9vtbZ+GpvQIqdxYi8CtAPRHGKO82H/gXgHgHcfnGn8/UzGTIHAjBsrqSmxhk5ZP9LHa+rmnHwy5RK",
+	"k10sVaUrnG2INW6Enipv+i2u1WKKO0buPe6TFyruw67Gd8CUOCjplmP7I0FfbJ5vdK6s7/yy3vlyY3gI",
+	"ib0xJ6zCJuGKpUveic5qr02hD1o+l/TvE+y/L3TdC0jV+O7/Hu/8/MOAuuaTDvWfFHy3oAJHCtDTfXpA",
+	"VJKd2fSMF7nK/nKipbprn4pW+/rNzq9X9uQfw8BMotX59UoftGQjuVST3eyeOS7a9h480wXf32XISt5H",
+	"bBlGiu96Xo48p7wdoDAXrywZ2l4xSk/lq/6VAQX6WQ/Y5BXOvVQ5+3+e1nXNNPU0Tapr2KdpkmpW9dui",
+	"rViyw9vgafqPNSDBPipR3elUnVxdf9He2GTuljw93vnk185jdyhnHq3LrNVizSesdY+1NljrGWt93F7/",
+	"lLmfMneLNX9hrS9Z66H44i2pZqlST8018TnE+70UK7+Y2E+Ndn2ToVDlzJux/gUYP3MurpDbrPUta/7G",
+	"Wi5rPhDK+V655DiRWPvjzDnue7I7Kp3WIbrXZRgvlXRTg3rNtOn44fLhsvBTj/yl4MtLyYYHWe9JcEAc",
+	"eeaZeeSJl3UiTyKHkJGnYt+1em71/wEAAP//r/w5dSk+AAA=",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

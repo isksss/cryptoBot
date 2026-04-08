@@ -11,15 +11,17 @@ import (
 
 // App はアプリ全体で共有する実行時設定です。
 type App struct {
-	DatabaseURL      string
-	HTTPAddr         string
-	WeeklyLimitUnits string
-	APIKey           string
-	APISecretKey     string
-	DryRun           bool
-	PriceSyncInterval time.Duration
+	DatabaseURL            string
+	HTTPAddr               string
+	WeeklyLimitUnits       string
+	APIKey                 string
+	APISecretKey           string
+	AdminUsername          string
+	AdminPassword          string
+	DryRun                 bool
+	PriceSyncInterval      time.Duration
 	OrderReconcileInterval time.Duration
-	LogLevel         slog.Level
+	LogLevel               slog.Level
 }
 
 // Load は環境変数から設定を読み出し、必須値を検証します。
@@ -38,15 +40,17 @@ func Load() (App, error) {
 	}
 
 	cfg := App{
-		DatabaseURL:      os.Getenv("CRYPTOBOT_DATABASE_URL"),
-		HTTPAddr:         EnvOrDefault("CRYPTOBOT_HTTP_ADDR", ":8080"),
-		WeeklyLimitUnits: EnvOrDefault("CRYPTOBOT_WEEKLY_LIMIT_UNITS", "0"),
-		APIKey:           os.Getenv("CRYPTOBOT_API_KEY"),
-		APISecretKey:     os.Getenv("CRYPTOBOT_API_SECRET_KEY"),
-		DryRun:           dryRun,
-		PriceSyncInterval: priceSyncInterval,
+		DatabaseURL:            os.Getenv("CRYPTOBOT_DATABASE_URL"),
+		HTTPAddr:               EnvOrDefault("CRYPTOBOT_HTTP_ADDR", ":8080"),
+		WeeklyLimitUnits:       EnvOrDefault("CRYPTOBOT_WEEKLY_LIMIT_UNITS", "0"),
+		APIKey:                 os.Getenv("CRYPTOBOT_API_KEY"),
+		APISecretKey:           os.Getenv("CRYPTOBOT_API_SECRET_KEY"),
+		AdminUsername:          os.Getenv("CRYPTOBOT_ADMIN_USERNAME"),
+		AdminPassword:          os.Getenv("CRYPTOBOT_ADMIN_PASSWORD"),
+		DryRun:                 dryRun,
+		PriceSyncInterval:      priceSyncInterval,
 		OrderReconcileInterval: orderReconcileInterval,
-		LogLevel:         ParseLogLevel(EnvOrDefault("CRYPTOBOT_LOG_LEVEL", "info")),
+		LogLevel:               ParseLogLevel(EnvOrDefault("CRYPTOBOT_LOG_LEVEL", "info")),
 	}
 
 	if cfg.DatabaseURL == "" {
@@ -57,6 +61,12 @@ func Load() (App, error) {
 	}
 	if cfg.APISecretKey == "" {
 		return App{}, errors.New("CRYPTOBOT_API_SECRET_KEY is required")
+	}
+	if cfg.AdminUsername == "" {
+		return App{}, errors.New("CRYPTOBOT_ADMIN_USERNAME is required")
+	}
+	if cfg.AdminPassword == "" {
+		return App{}, errors.New("CRYPTOBOT_ADMIN_PASSWORD is required")
 	}
 
 	return cfg, nil

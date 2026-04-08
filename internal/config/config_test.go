@@ -50,6 +50,8 @@ func TestLoad(t *testing.T) {
 	t.Setenv("CRYPTOBOT_DATABASE_URL", "postgres://example")
 	t.Setenv("CRYPTOBOT_API_KEY", "key")
 	t.Setenv("CRYPTOBOT_API_SECRET_KEY", "secret")
+	t.Setenv("CRYPTOBOT_ADMIN_USERNAME", "admin")
+	t.Setenv("CRYPTOBOT_ADMIN_PASSWORD", "pass")
 	t.Setenv("CRYPTOBOT_LOG_LEVEL", "debug")
 	t.Setenv("CRYPTOBOT_DRY_RUN", "true")
 	t.Setenv("CRYPTOBOT_PRICE_SYNC_INTERVAL", "30m")
@@ -65,6 +67,9 @@ func TestLoad(t *testing.T) {
 	}
 	if cfg.HTTPAddr != ":8080" {
 		t.Fatalf("unexpected http addr: %s", cfg.HTTPAddr)
+	}
+	if cfg.AdminUsername != "admin" || cfg.AdminPassword != "pass" {
+		t.Fatalf("unexpected admin credentials: %+v", cfg)
 	}
 	if cfg.LogLevel != slog.LevelDebug {
 		t.Fatalf("unexpected log level: %v", cfg.LogLevel)

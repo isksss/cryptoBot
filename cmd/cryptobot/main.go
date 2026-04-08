@@ -16,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	appapi "github.com/isksss/cryptoBot/internal/api"
+	"github.com/isksss/cryptoBot/internal/auth"
 	"github.com/isksss/cryptoBot/internal/bot"
 	appconfig "github.com/isksss/cryptoBot/internal/config"
 	"github.com/isksss/cryptoBot/internal/gmo"
@@ -70,6 +71,7 @@ func main() {
 	mux.Handle("/", webHandler)
 	httpHandler := appapi.HandlerFromMux(serverInterface, mux)
 	httpHandler = normalizeEmptyJSONBody(httpHandler)
+	httpHandler = auth.NewBasicProtector("cryptobot", cfg.AdminUsername, cfg.AdminPassword).WrapManagement(httpHandler)
 
 	server := &http.Server{
 		Addr:              cfg.HTTPAddr,

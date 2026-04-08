@@ -7,6 +7,8 @@ info:
     売買 bot と Web UI は同一バイナリで稼働し、この API を通じて監視と手動操作を行う。
 servers:
   - url: http://localhost:8080
+security:
+  - basicAuth: []
 tags:
   - name: system
   - name: balances
@@ -17,6 +19,7 @@ tags:
 paths:
   /healthz:
     get:
+      security: []
       operationId: getHealth
       tags: [system]
       summary: ヘルスチェック
@@ -39,6 +42,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SystemSummaryResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
   /api/v1/prices/latest:
     get:
       operationId: getLatestPrices
@@ -53,6 +58,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/LatestPricesResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
   /api/v1/balances/latest:
     get:
       operationId: getLatestBalances
@@ -67,6 +74,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/LatestBalancesResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
   /api/v1/prices/history:
     get:
       operationId: listPriceHistory
@@ -84,6 +93,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PriceHistoryResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
   /api/v1/orders:
     get:
       operationId: listOrders
@@ -101,6 +112,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/OrderListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
     post:
       operationId: createOrder
       tags: [orders]
@@ -118,6 +131,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CreateOrderResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
   /api/v1/orders/{orderId}:
     get:
       operationId: getOrder
@@ -134,6 +149,8 @@ paths:
                 $ref: "#/components/schemas/OrderDetailResponse"
         "404":
           $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
   /api/v1/orders/{orderId}/cancel:
     post:
       operationId: cancelOrder
@@ -148,6 +165,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CancelOrderResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
   /api/v1/executions:
@@ -166,6 +185,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ExecutionListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
   /api/v1/job-runs:
     get:
       operationId: listJobRuns
@@ -182,6 +203,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/JobRunListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
   /api/v1/job-runs/price-fetch:
     post:
       operationId: triggerPriceFetchJob
@@ -200,6 +223,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/TriggerJobResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
   /api/v1/job-runs/order-reconcile:
     post:
       operationId: triggerOrderReconcileJob
@@ -218,6 +243,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/TriggerJobResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
   /api/v1/job-runs/daily-trade:
     post:
       operationId: triggerDailyTradeJob
@@ -236,7 +263,16 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/TriggerJobResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
 components:
+  securitySchemes:
+    basicAuth:
+      type: http
+      scheme: basic
+      description: |
+        `/api/v1/*`, `/`, `/ui/*` は Basic 認証が必要。
+        `CRYPTOBOT_ADMIN_USERNAME` と `CRYPTOBOT_ADMIN_PASSWORD` を使用する。
   parameters:
     AssetCode:
       name: assetCode
@@ -320,6 +356,19 @@ components:
         format: int64
         minimum: 1
   responses:
+    Unauthorized:
+      description: Basic 認証が必要、または認証情報が不正
+      headers:
+        WWW-Authenticate:
+          description: Basic 認証チャレンジ
+          schema:
+            type: string
+            example: Basic realm="cryptobot", charset="UTF-8"
+      content:
+        text/plain:
+          schema:
+            type: string
+            example: authentication required
     NotFound:
       description: リソースが見つからない
       content:

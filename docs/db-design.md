@@ -201,3 +201,4 @@
 - 将来 API を生やす前提で、主キーはすべて外部公開しやすい単純な surrogate key を使う
 - 列挙型は PostgreSQL の `enum` ではなく `text + check 制約` で始める
 - マイグレーションツール導入後は `db/init/001_schema.sql` を初期投入用として固定し、以降は別 migration に切り出す
+- 管理 API / 管理画面の Basic 認証情報は DB には保存せず、環境変数で管理する
