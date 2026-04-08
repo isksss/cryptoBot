@@ -22,6 +22,7 @@ import (
 	"github.com/isksss/cryptoBot/internal/order"
 	"github.com/isksss/cryptoBot/internal/store"
 	appsync "github.com/isksss/cryptoBot/internal/sync"
+	appweb "github.com/isksss/cryptoBot/internal/web"
 )
 
 // main は bot 実行系と管理 API を同じバイナリで起動します。
@@ -59,8 +60,14 @@ func main() {
 		RequestErrorHandlerFunc:  jsonRequestError,
 		ResponseErrorHandlerFunc: jsonResponseError,
 	})
+	webHandler, err := appweb.NewHandler(queries, syncService, orderService, cfg.WeeklyLimitUnits, cfg.DryRun)
+	if err != nil {
+		logger.Error("create web handler", slog.Any("error", err))
+		os.Exit(1)
+	}
 
 	mux := http.NewServeMux()
+	mux.Handle("/", webHandler)
 	httpHandler := appapi.HandlerFromMux(serverInterface, mux)
 	httpHandler = normalizeEmptyJSONBody(httpHandler)
 
