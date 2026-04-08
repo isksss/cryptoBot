@@ -3,6 +3,8 @@ package web
 import (
 	"context"
 	"embed"
+	"errors"
+	"fmt"
 	"html/template"
 	"math/big"
 	"net/http"
@@ -50,6 +52,8 @@ type flashData struct {
 	Kind    string
 	Message string
 }
+
+const webRequestedBy = "web-ui"
 
 type summaryData struct {
 	ServerTime            string
@@ -302,15 +306,29 @@ func (h *Handler) createOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	assetCode := r.FormValue("assetCode")
+	side := r.FormValue("side")
+	priceJpy := strings.TrimSpace(r.FormValue("priceJpy"))
+	units := strings.TrimSpace(r.FormValue("units"))
+	timeInForce := r.FormValue("timeInForce")
+	if err := validateOrderForm(assetCode, side, priceJpy, units, timeInForce); err != nil {
+		h.writeErrorFlashWithStatus(w, http.StatusBadRequest, err)
+		return
+	}
+
 	_, err := h.orderService.CreateLimitOrder(r.Context(), order.CreateInput{
-		AssetCode:   r.FormValue("assetCode"),
-		Side:        r.FormValue("side"),
-		PriceJpy:    r.FormValue("priceJpy"),
-		Units:       r.FormValue("units"),
-		TimeInForce: r.FormValue("timeInForce"),
-		RequestedBy: valueOrDefault(r.FormValue("requestedBy"), "web-ui"),
+		AssetCode:   assetCode,
+		Side:        side,
+		PriceJpy:    priceJpy,
+		Units:       units,
+		TimeInForce: timeInForce,
+		RequestedBy: webRequestedBy,
 	})
 	if err != nil {
+		if errors.Is(err, order.ErrInvalidOrderInput) {
+			h.writeErrorFlashWithStatus(w, http.StatusBadRequest, err)
+			return
+		}
 		h.writeErrorFlash(w, err)
 		return
 	}
@@ -358,7 +376,13 @@ func (h *Handler) writeSuccessFlash(w http.ResponseWriter, message string) {
 
 // writeErrorFlash は画面用のエラーメッセージを返します。
 func (h *Handler) writeErrorFlash(w http.ResponseWriter, err error) {
-	h.render(w, "flash", flashData{Kind: "error", Message: err.Error()})
+	h.writeErrorFlashWithStatus(w, http.StatusInternalServerError, err)
+}
+
+func (h *Handler) writeErrorFlashWithStatus(w http.ResponseWriter, status int, err error) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(status)
+	_ = h.templates.ExecuteTemplate(w, "flash", flashData{Kind: "error", Message: err.Error()})
 }
 
 // render は HTML テンプレートを実行します。
@@ -373,6 +397,36 @@ func valueOrDefault(value string, fallback string) string {
 		return fallback
 	}
 	return value
+}
+
+func validateOrderForm(assetCode string, side string, priceJpy string, units string, timeInForce string) error {
+	if assetCode != "BTC" && assetCode != "ETH" {
+		return fmt.Errorf("assetCode must be BTC or ETH")
+	}
+	if side != "buy" && side != "sell" {
+		return fmt.Errorf("side must be buy or sell")
+	}
+	if timeInForce != "SOK" && timeInForce != "FAS" && timeInForce != "FAK" && timeInForce != "FOK" {
+		return fmt.Errorf("timeInForce must be SOK, FAS, FAK, or FOK")
+	}
+	if _, ok := new(big.Rat).SetString(priceJpy); !ok {
+		return fmt.Errorf("priceJpy must be decimal")
+	}
+	if _, ok := new(big.Rat).SetString(units); !ok {
+		return fmt.Errorf("units must be decimal")
+	}
+	if isZeroOrNegative(priceJpy) {
+		return fmt.Errorf("priceJpy must be positive")
+	}
+	if isZeroOrNegative(units) {
+		return fmt.Errorf("units must be positive")
+	}
+	return nil
+}
+
+func isZeroOrNegative(value string) bool {
+	r, ok := new(big.Rat).SetString(value)
+	return !ok || r.Sign() <= 0
 }
 
 // jst は画面表示で共通利用する JST ロケーションです。

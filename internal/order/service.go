@@ -29,6 +29,8 @@ var (
 	ErrDryRunLiveCancel = errors.New("dry-run mode prevents cancelling live exchange orders")
 	// ErrJobSkipped はジョブを安全上の理由でスキップしたことを表す内部エラーです。
 	ErrJobSkipped = errors.New("job skipped")
+	// ErrInvalidOrderInput は注文入力の形式が不正なことを表します。
+	ErrInvalidOrderInput = errors.New("invalid order input")
 )
 
 // Store は注文作成・同期・日次売買に必要な永続化操作を表します。
@@ -104,6 +106,14 @@ func (s *Service) CreateLimitOrder(ctx context.Context, input CreateInput) (stor
 	if timeInForce == "" {
 		timeInForce = defaultTimeInForce
 	}
+	requestedBy := strings.TrimSpace(input.RequestedBy)
+	if requestedBy == "" {
+		requestedBy = "system"
+	}
+
+	if err := validateCreateInput(assetCode, side, input.PriceJpy, input.Units, timeInForce); err != nil {
+		return store.InsertOrderRow{}, err
+	}
 
 	rule, err := s.getRule(ctx, assetCode)
 	if err != nil {
@@ -152,7 +162,7 @@ func (s *Service) CreateLimitOrder(ctx context.Context, input CreateInput) (stor
 	}
 
 	payload, _ := json.Marshal(map[string]any{
-		"requestedBy": input.RequestedBy,
+		"requestedBy": requestedBy,
 		"timeInForce": timeInForce,
 		"dryRun":      s.dryRun,
 		"rule": map[string]string{
@@ -642,8 +652,8 @@ func (s *Service) insertSyncFailure(ctx context.Context, jobRunID int64, orderID
 		"error": cause.Error(),
 	})
 	if err := s.store.InsertOrderEvent(ctx, store.InsertOrderEventParams{
-		OrderID:  orderID,
-		JobRunID: int64Ptr(jobRunID),
+		OrderID:   orderID,
+		JobRunID:  int64Ptr(jobRunID),
 		EventType: "sync_failed",
 		EventAt:   pgTime(s.now().UTC()),
 		Payload:   payload,
@@ -670,7 +680,7 @@ func isDryRunExchangeOrderID(value string) bool {
 func validateOrderUnits(units string, minOrderSize string, sizeStep string) error {
 	value, err := parseRat(units)
 	if err != nil {
-		return err
+		return fmt.Errorf("%w: units must be decimal", ErrInvalidOrderInput)
 	}
 	minValue, err := parseRat(minOrderSize)
 	if err != nil {
@@ -688,6 +698,44 @@ func validateOrderUnits(units string, minOrderSize string, sizeStep string) erro
 	quotient := new(big.Rat).Quo(value, stepValue)
 	if quotient.Denom().Cmp(big.NewInt(1)) != 0 {
 		return fmt.Errorf("注文数量が刻み幅に一致しません: units=%s step=%s", units, sizeStep)
+	}
+
+	return nil
+}
+
+func validateCreateInput(assetCode string, side string, priceJpy string, units string, timeInForce string) error {
+	switch assetCode {
+	case "BTC", "ETH":
+	default:
+		return fmt.Errorf("%w: unsupported asset code", ErrInvalidOrderInput)
+	}
+
+	switch side {
+	case "buy", "sell":
+	default:
+		return fmt.Errorf("%w: unsupported side", ErrInvalidOrderInput)
+	}
+
+	switch timeInForce {
+	case "SOK", "FAS", "FAK", "FOK":
+	default:
+		return fmt.Errorf("%w: unsupported timeInForce", ErrInvalidOrderInput)
+	}
+
+	price, err := parseRat(priceJpy)
+	if err != nil {
+		return fmt.Errorf("%w: priceJpy must be decimal", ErrInvalidOrderInput)
+	}
+	if price.Sign() <= 0 {
+		return fmt.Errorf("%w: priceJpy must be positive", ErrInvalidOrderInput)
+	}
+
+	unitValue, err := parseRat(units)
+	if err != nil {
+		return fmt.Errorf("%w: units must be decimal", ErrInvalidOrderInput)
+	}
+	if unitValue.Sign() <= 0 {
+		return fmt.Errorf("%w: units must be positive", ErrInvalidOrderInput)
 	}
 
 	return nil

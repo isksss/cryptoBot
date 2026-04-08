@@ -18,8 +18,7 @@
       --warn: #b54708;
     }
     * { box-sizing: border-box; }
-    body {ras0120
-    
+    body {
       margin: 0;
       font-family: "Hiragino Sans", "Noto Sans JP", sans-serif;
       color: var(--text);
@@ -214,15 +213,11 @@
             </div>
             <div class="field">
               <label for="priceJpy">価格(JPY)</label>
-              <input id="priceJpy" name="priceJpy" placeholder="10000000">
+              <input id="priceJpy" name="priceJpy" placeholder="10000000" inputmode="decimal" required>
             </div>
             <div class="field">
               <label for="units">数量</label>
-              <input id="units" name="units" placeholder="0.001">
-            </div>
-            <div class="field">
-              <label for="requestedBy">requestedBy</label>
-              <input id="requestedBy" name="requestedBy" value="web-ui">
+              <input id="units" name="units" placeholder="0.001" inputmode="decimal" required>
             </div>
             <div class="field" style="grid-column: 1 / -1;">
               <button class="primary" type="submit">注文作成</button>

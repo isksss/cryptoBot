@@ -2,6 +2,7 @@ package order
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -244,6 +245,40 @@ func TestCreateLimitOrderRejectsInvalidUnits(t *testing.T) {
 		Units:     "0.0005",
 	}); err == nil {
 		t.Fatal("expected validation error")
+	}
+}
+
+func TestCreateLimitOrderRejectsInvalidPrice(t *testing.T) {
+	t.Parallel()
+
+	service := NewService(&fakeStore{}, &fakeExchangeClient{
+		rules: []gmo.SymbolRule{{Symbol: "BTC_JPY", MinOrderSize: "0.001", SizeStep: "0.001", TickSize: "1"}},
+	}, false, "0.1")
+
+	if _, err := service.CreateLimitOrder(context.Background(), CreateInput{
+		AssetCode: "BTC",
+		Side:      "buy",
+		PriceJpy:  "invalid",
+		Units:     "0.001",
+	}); !errors.Is(err, ErrInvalidOrderInput) {
+		t.Fatalf("expected ErrInvalidOrderInput, got: %v", err)
+	}
+}
+
+func TestCreateLimitOrderRejectsInvalidSide(t *testing.T) {
+	t.Parallel()
+
+	service := NewService(&fakeStore{}, &fakeExchangeClient{
+		rules: []gmo.SymbolRule{{Symbol: "BTC_JPY", MinOrderSize: "0.001", SizeStep: "0.001", TickSize: "1"}},
+	}, false, "0.1")
+
+	if _, err := service.CreateLimitOrder(context.Background(), CreateInput{
+		AssetCode: "BTC",
+		Side:      "hold",
+		PriceJpy:  "10000000",
+		Units:     "0.001",
+	}); !errors.Is(err, ErrInvalidOrderInput) {
+		t.Fatalf("expected ErrInvalidOrderInput, got: %v", err)
 	}
 }
 

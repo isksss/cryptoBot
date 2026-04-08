@@ -45,11 +45,15 @@ func (f *fakeQuerier) InsertJobRun(context.Context, store.InsertJobRunParams) (s
 func (f *fakeQuerier) InsertOrder(context.Context, store.InsertOrderParams) (store.InsertOrderRow, error) {
 	return store.InsertOrderRow{}, nil
 }
-func (f *fakeQuerier) InsertOrderEvent(context.Context, store.InsertOrderEventParams) error { return nil }
+func (f *fakeQuerier) InsertOrderEvent(context.Context, store.InsertOrderEventParams) error {
+	return nil
+}
 func (f *fakeQuerier) InsertPriceSnapshot(context.Context, store.InsertPriceSnapshotParams) (store.InsertPriceSnapshotRow, error) {
 	return store.InsertPriceSnapshotRow{}, nil
 }
-func (f *fakeQuerier) InsertTradeExecution(context.Context, store.InsertTradeExecutionParams) error { return nil }
+func (f *fakeQuerier) InsertTradeExecution(context.Context, store.InsertTradeExecutionParams) error {
+	return nil
+}
 func (f *fakeQuerier) ListExecutions(context.Context, store.ListExecutionsParams) ([]store.ListExecutionsRow, error) {
 	return nil, nil
 }
@@ -80,7 +84,9 @@ func (f *fakeQuerier) ListReconcilableOrders(context.Context, int32) ([]store.Li
 func (f *fakeQuerier) ListWeeklyConsumedBuyUnits(context.Context, pgtype.Timestamptz) ([]store.ListWeeklyConsumedBuyUnitsRow, error) {
 	return f.weeklyConsumed, nil
 }
-func (f *fakeQuerier) MarkJobRunFailed(context.Context, store.MarkJobRunFailedParams) error { return nil }
+func (f *fakeQuerier) MarkJobRunFailed(context.Context, store.MarkJobRunFailedParams) error {
+	return nil
+}
 func (f *fakeQuerier) MarkJobRunSkipped(context.Context, store.MarkJobRunSkippedParams) error {
 	return nil
 }
@@ -90,7 +96,9 @@ func (f *fakeQuerier) MarkJobRunSucceeded(context.Context, store.MarkJobRunSucce
 func (f *fakeQuerier) MarkOrderCancelRequested(context.Context, store.MarkOrderCancelRequestedParams) error {
 	return nil
 }
-func (f *fakeQuerier) MarkOrderCancelled(context.Context, store.MarkOrderCancelledParams) error { return nil }
+func (f *fakeQuerier) MarkOrderCancelled(context.Context, store.MarkOrderCancelledParams) error {
+	return nil
+}
 func (f *fakeQuerier) UpdateOrderAfterSync(context.Context, store.UpdateOrderAfterSyncParams) error {
 	return nil
 }
@@ -138,6 +146,12 @@ func TestIndex(t *testing.T) {
 	if !strings.Contains(rec.Body.String(), "CryptoBot Console") {
 		t.Fatalf("unexpected body: %s", rec.Body.String())
 	}
+	if strings.Contains(rec.Body.String(), "ras0120") {
+		t.Fatalf("unexpected corrupted css token in body: %s", rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), "requestedBy") {
+		t.Fatalf("unexpected requestedBy field in body: %s", rec.Body.String())
+	}
 }
 
 func TestCreateOrderAction(t *testing.T) {
@@ -160,6 +174,32 @@ func TestCreateOrderAction(t *testing.T) {
 	}
 	if orderSvc.created.AssetCode != "BTC" || orderSvc.created.Units != "0.001" {
 		t.Fatalf("unexpected create input: %+v", orderSvc.created)
+	}
+	if orderSvc.created.RequestedBy != webRequestedBy {
+		t.Fatalf("unexpected requestedBy: %+v", orderSvc.created)
+	}
+}
+
+func TestCreateOrderActionRejectsInvalidForm(t *testing.T) {
+	t.Parallel()
+
+	orderSvc := &fakeOrderService{}
+	h, err := NewHandler(&fakeQuerier{}, &fakePriceSyncer{}, orderSvc, "0.1", true)
+	if err != nil {
+		t.Fatalf("NewHandler returned error: %v", err)
+	}
+
+	form := strings.NewReader("assetCode=DOGE&side=buy&priceJpy=abc&units=0&timeInForce=SOK")
+	req := httptest.NewRequest(http.MethodPost, "/ui/actions/orders", form)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("unexpected status: %d", rec.Code)
+	}
+	if orderSvc.created.AssetCode != "" {
+		t.Fatalf("service should not be called: %+v", orderSvc.created)
 	}
 }
 
